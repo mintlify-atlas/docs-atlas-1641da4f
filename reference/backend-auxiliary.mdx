@@ -1,0 +1,141 @@
+---
+title: "Java Auxiliary Backend: Local File Bridge and Export Engine"
+sidebarTitle: "Auxiliary Backend"
+description: "Chronos Atlas ships an embedded Java 21 Spring/Jetty server that handles file system operations, SQLite backups, map asset processing, font compilation, and document export."
+---
+
+The Chronos Atlas auxiliary backend is a locally-run Java process that acts as a **file system bridge** between the browser-sandboxed frontend and the real operating system disk. Because the browser cannot write arbitrary files to user-chosen paths, the Java server fills that role: it receives data from the frontend over HTTP, performs disk I/O, and returns results as downloadable streams. It also handles computationally expensive tasks — document compilation, font rendering, and image processing — that are impractical to run inside the browser.
+
+<Warning>
+  The auxiliary backend is entirely optional for core worldbuilding tasks. Writing, editing entities, managing timelines, and working with the graph all function without it. The backend is required only for: **SQLite backup/restore to disk**, **map asset upload and download**, **world bible export (EPUB/PDF/DOCX/HTML)**, and **conlang font compilation (.ttf)**.
+</Warning>
+
+## Technology Stack
+
+| Component | Technology | Version |
+|---|---|---|
+| Language | Java | 21 |
+| Web Framework | Spring Web MVC | 5.3.31 |
+| Embedded Server | Eclipse Jetty | 9.4.x |
+| JSON Serialisation | Jackson Databind | 2.15.2 |
+| Utilities | Project Lombok | 1.18.30 |
+| Logging | SLF4J + Logback | 1.7.36 / 1.2.13 |
+| PDF Rendering | Flying Saucer (openpdf) | 9.1.22 |
+| HTML Parsing | jsoup | 1.17.2 |
+| Build | Maven Shade Plugin | 3.5.1 (fat JAR) |
+
+The server is packaged as a self-contained fat JAR via the Maven Shade plugin and starts on **port 8080** by default. The Vite dev server proxies all `/api/*` requests to `http://localhost:8080` during development.
+
+## Domain Structure
+
+The backend follows a domain-driven package layout under `com.worldbuilding`:
+
+```text
+com.worldbuilding
+├── core/
+│   ├── AuxServerApplication.java     # Jetty bootstrap, Spring context, CORS filter
+│   └── controller/
+│       ├── DatabaseController.java   # /db — backup, restore, ZIP export/import
+│       ├── SyncController.java       # /sync — JSON payload archiving
+│       ├── EditorExportController.java # /editor — HTML-to-PDF export
+│       └── SystemController.java     # /system — health check, ping
+└── domains/
+    ├── mapeditor/
+    │   ├── controller/MapEditorController.java   # /mapeditor — asset upload/download
+    │   ├── model/MapAsset.java
+    │   └── service/MapAssetProcessor.java
+    ├── worldbible/
+    │   ├── controller/WorldBibleExportController.java  # /worldbible — book compilation
+    │   ├── model/CompilationSettings.java
+    │   ├── model/ExportFormat.java
+    │   └── service/BookCompilerService.java
+    └── linguistics/
+        ├── controller/LinguisticsFontController.java  # /linguistics — font compile
+        ├── model/ConlangGlyph.java
+        ├── model/FontConfig.java
+        └── service/FontCompilerService.java
+```
+
+<CardGroup cols={2}>
+  <Card title="core controllers" icon="server">
+    Handle database lifecycle (backup/restore/ZIP), JSON sync archiving, HTML-to-PDF export, and system health.
+  </Card>
+  <Card title="domains.mapeditor" icon="map">
+    Upload and serve map images; create blank PNG canvases. Assets stored in `maps_assets/`.
+  </Card>
+  <Card title="domains.worldbible" icon="book">
+    Compile a project's world bible content tree into EPUB, PDF, DOCX, or offline HTML.
+  </Card>
+  <Card title="domains.linguistics" icon="font">
+    Accept SVG glyph paths + font metadata and return a compiled TrueType `.ttf` font file.
+  </Card>
+</CardGroup>
+
+## CORS
+
+Every controller is annotated with `@CrossOrigin(origins = "*")`, and the Jetty bootstrap filter additionally sets the following response headers globally for all requests:
+
+```text
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: POST, GET, OPTIONS, DELETE, PUT
+Access-Control-Allow-Headers: x-requested-with, authorization, Content-Type, Authorization, credential, X-XSRF-TOKEN
+```
+
+HTTP `OPTIONS` preflight requests are intercepted and answered with `200 OK` immediately, before the Spring dispatcher runs.
+
+The filter also sets isolation headers required by SQLite WASM:
+
+```text
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: credentialless
+```
+
+## Running the Backend
+
+<Steps>
+  <Step title="Windows — run-app.bat (recommended)">
+    From the project root, execute the provided batch script. It launches both the Java backend and the Vite frontend in a single command:
+
+    ```batch
+    run-app.bat
+    ```
+  </Step>
+  <Step title="Manual — Maven from /backend">
+    Navigate to the `backend/` directory, build the fat JAR, and run it directly:
+
+    ```bash
+    cd backend
+    mvn package -q
+    java -jar target/aux-server-1.0.0.jar
+    ```
+
+    The server prints `Server started at http://localhost:8080` when ready.
+  </Step>
+</Steps>
+
+<Info>
+  The backend also serves the Vite production build as static files from `./dist` when running in production mode. During development, the Vite dev server on port 5173 proxies `/api/*` to the backend on port 8080.
+</Info>
+
+## File Storage
+
+The backend stores files relative to the working directory from which the JAR is launched:
+
+| Directory | Contents |
+|---|---|
+| `backup/` | Project `.sqlite` database backups and `.sync.json` payload archives |
+| `maps_assets/` | Map image assets — named `{projectName}_{fileName}` |
+
+Both directories are created automatically on startup if they do not exist. There is no configuration file; the working directory is the implicit root.
+
+## System Endpoints
+
+Two lightweight system endpoints are available on the `core` controllers for health checks:
+
+```bash
+# Returns JSON: { active, version, runtime, framework }
+curl http://localhost:8080/api/system/status
+
+# Returns plain text: "pong"
+curl http://localhost:8080/api/system/ping
+```

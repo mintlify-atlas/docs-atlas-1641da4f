@@ -1,0 +1,148 @@
+---
+title: "Architecture Guardrails: Enforcing Feature Slice Boundaries"
+sidebarTitle: "Guardrails"
+description: "Chronos Atlas uses an automated architecture check script to detect cross-feature deep imports and business logic leaking into the Shared kernel — enforcing clean vertical slice boundaries."
+---
+
+Chronos Atlas is built on a Feature-Sliced Architecture where each feature (Entities, Maps, Timeline, Writing, Linguistics, WorldBible, Graph, Shell, etc.) owns its internal layers — `application`, `components`, `hooks`, `pages`, `domain`, and `store` — and communicates outward only through its public `index.ts`. Without automated enforcement, the boundaries between these slices erode over time: one feature imports directly into another feature's internals, or utility code in the `Shared` kernel quietly accumulates business logic. The architecture guardrail script (`frontend/scripts/architecture-check.mjs`) catches these violations mechanically, before they become technical debt.
+
+## Running the check
+
+Both commands run from the `frontend/` directory. They scan every `.ts` and `.tsx` file under `src/` and write a machine-readable report to `frontend/reports/architecture-guard-report.json`.
+
+```bash
+# Non-blocking check — generates report but does not fail the process
+npm run arch:check
+
+# Strict check — exits with a non-zero code if any violations are found
+npm run arch:check:strict
+```
+
+The terminal output shows a summary immediately after the scan:
+
+```
+Architecture guard report generated: reports/architecture-guard-report.json
+Files scanned: 302
+Violations: 0
+```
+
+If violations exist, they are broken down by kind (`CROSS_FEATURE_DEEP_IMPORT`, `SHARED_KERNEL_DEPENDS_ON_FEATURE`) in the summary line before the process exits.
+
+<Warning>
+  Running `npm run arch:check:strict` in CI **will fail the build** when violations are present — the script calls `process.exit(1)`. Use this mode to enforce boundaries in pull requests and prevent regressions from being merged. The non-strict `npm run arch:check` is safe to use locally during exploratory refactoring, since it generates the report without blocking your workflow.
+</Warning>
+
+## What the script checks
+
+The script enforces two distinct boundary rules:
+
+### Rule 1 — Cross-feature deep imports
+
+**Violation kind:** `CROSS_FEATURE_DEEP_IMPORT`
+
+A cross-feature deep import occurs when code in one feature reaches past another feature's public `index.ts` and directly imports from its internal sub-folders:
+
+```typescript
+// ❌ VIOLATION — deep import into Maps internals from another feature
+import { useMapEditor } from "@features/Maps/hooks/useMapEditor";
+import { MapCanvas } from "@features/Maps/components/MapCanvas";
+
+// ✅ CORRECT — consume only the public API exported from index.ts
+import { useMapEditor, MapCanvas } from "@features/Maps";
+```
+
+The script matches imports against the pattern:
+
+```
+@features/<FeatureName>/(components|hooks|pages|application|domain|store)/...
+```
+
+Two explicit exceptions are permitted by the script:
+- `@features/App/store/useAppStore` — the global app store used across all features
+- `@features/Shell/store/useRightPanelStore` — the right-panel store used by shell-level layout features
+
+Intra-feature deep imports (a file within `Maps/` importing from `@features/Maps/hooks/...`) are always allowed.
+
+### Rule 2 — Business logic in Shared outside adapters
+
+**Violation kind:** `SHARED_KERNEL_DEPENDS_ON_FEATURE`
+
+The `Shared` kernel (`src/features/Shared/`) is a transversal collection of UI primitives, layout components, and utilities — not a container for business logic. If a file inside `Shared/` imports from any `@features/<BusinessFeature>` path that is not itself `@features/Shared/...`, the script raises a violation:
+
+```typescript
+// ❌ VIOLATION — Shared file importing directly from a business feature
+// File: src/features/Shared/panels/WorldPanel.tsx
+import { useWorldBibleStore } from "@features/WorldBible/store/worldBibleStore";
+
+// ✅ CORRECT — move the integration to an explicit adapter
+// File: src/features/Shared/adapters/WorldBibleAdapter.tsx
+import { useWorldBibleStore } from "@features/WorldBible/store/worldBibleStore";
+```
+
+Files under `src/features/Shared/adapters/` are exempt from this rule because adapters exist precisely to bridge the Shared kernel with specific business features in a declared, visible way.
+
+## Critical architectural rules
+
+These rules are derived from `Docs/01_Estrategia_Tecnica.md` and represent the full set of structural contracts the codebase is held to.
+
+<Note>
+  Violating any of these rules — even in ways the automated script cannot currently detect — constitutes architectural debt. When in doubt, consult `Docs/01_Estrategia_Tecnica.md` (the canonical source for placement decisions) before writing new code.
+</Note>
+
+- **Screen-only hooks belong in `pages/`** alongside the view component that uses them, not in the feature's `hooks/` folder. If a hook is only ever used by one page, it should live next to that page.
+- **Reusable hooks within a feature belong in `hooks/`** — hooks that are consumed by multiple components or pages inside the same feature go in the feature's `hooks/` sub-folder.
+- **`index.ts` at the feature root is the public API** — every feature must expose a root-level `index.ts`. This is the only entry point other features are allowed to import from.
+- **No global legacy layers** — do not reintroduce `src/application/`, `src/store/`, `src/domain/`, or `src/presentation/` as transversal logic hubs. All logic is scoped to its feature.
+- **All SQL access goes through `src/infrastructure/localDB/repositories/`** — never write `sqlocal` or raw SQL calls inside components, hooks, or application cases directly. Import from `@repositories/*` instead.
+- **No deep cross-feature imports** — use `@features/<FeatureName>` (the public API) only. Never import from `@features/<OtherFeature>/components`, `/hooks`, `/pages`, `/application`, `/domain`, or `/store` directly.
+- **Shared kernel must not import business features** — `src/features/Shared/*` must remain free of business-feature dependencies. Integrations that genuinely need to reach a business feature must be declared explicitly in `src/features/Shared/adapters/`.
+
+## Reading the report
+
+The report at `frontend/reports/architecture-guard-report.json` is overwritten on every run. Its structure is:
+
+```json
+{
+  "generatedAt": "2026-06-26T11:29:59.097Z",
+  "strictMode": true,
+  "totals": {
+    "filesScanned": 302,
+    "violations": 0
+  },
+  "byKind": {},
+  "violations": []
+}
+```
+
+When violations are present the `violations` array contains one object per offending import:
+
+```json
+{
+  "violations": [
+    {
+      "kind": "CROSS_FEATURE_DEEP_IMPORT",
+      "file": "src/features/Writing/components/EntitySidebar.tsx",
+      "importerFeature": "Writing",
+      "importedPath": "@features/Entities/hooks/useEntitySearch",
+      "message": "Import profundo entre features. Usa API publica del modulo destino (index.ts)."
+    },
+    {
+      "kind": "SHARED_KERNEL_DEPENDS_ON_FEATURE",
+      "file": "src/features/Shared/panels/TimelinePanel.tsx",
+      "importerFeature": "Shared",
+      "importedPath": "@features/Timeline/store/timelineStore",
+      "message": "Shared kernel no debe depender de features de negocio; mover a Shared/adapters o abstraer en Shared puro."
+    }
+  ]
+}
+```
+
+| Field | Description |
+|---|---|
+| `kind` | The rule that was broken — `CROSS_FEATURE_DEEP_IMPORT` or `SHARED_KERNEL_DEPENDS_ON_FEATURE` |
+| `file` | The file containing the offending import, relative to the `frontend/` root |
+| `importerFeature` | The feature the offending file belongs to (or `null` for files outside `src/features/`) |
+| `importedPath` | The exact import string that triggered the violation |
+| `message` | A human-readable description of the required fix |
+
+To resolve a `CROSS_FEATURE_DEEP_IMPORT` violation, locate the export in the target feature's `index.ts` (or add it there if missing) and update the import path to `@features/<FeatureName>`. To resolve a `SHARED_KERNEL_DEPENDS_ON_FEATURE` violation, move the integration logic into a new or existing file under `src/features/Shared/adapters/`.

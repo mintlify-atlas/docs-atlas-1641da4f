@@ -1,0 +1,161 @@
+---
+title: "Archetype Manager: Define Custom Entity Fields Per World"
+sidebarTitle: "Archetype Manager"
+description: "Use the Archetype Manager to create custom attribute templates (Plantillas) that add tailored fields to any entity type within a specific Chronos Atlas project."
+---
+
+The Archetype Manager is Chronos Atlas's system for extending the default entity structure with the custom fields your world requires. Because every world is different — a hard-magic fantasy needs spell-power ratings, a sci-fi setting needs starship classifications, a historical project needs dates of coronation — the Archetype Manager lets you define exactly which extra attributes appear on entities, what data type each holds, and whether they are required or optional.
+
+## What is an Archetype?
+
+An **Archetype** (internally a *Plantilla*) is a named field definition associated with one or more entity types within a project. When you create an archetype, Chronos Atlas registers it in the `plantillas` table and automatically renders a corresponding input field in the entity editor sidebar for every entity of the targeted type.
+
+This follows the **EAV (Entity–Attribute–Value)** pattern: the schema lives in `Plantilla` records, and the actual data lives in `Valor` records linked to individual entities.
+
+<CardGroup cols={2}>
+  <Card title="Project-scoped" icon="folder">
+    Each archetype belongs to a specific `project_id`. Changing a field definition in one project does not affect any other project.
+  </Card>
+  <Card title="Global or Specific" icon="globe">
+    An archetype can apply to **all** entity types in the project (`aplica_a_todo = 1`) or only to a **specific** type (`tipo_objetivo`, e.g., `PERSONAJE`, `LUGAR`).
+  </Card>
+</CardGroup>
+
+## Creating a Template Field
+
+<Steps>
+  <Step title="Navigate to Archetype Manager">
+    Open **Settings** (gear icon in the left sidebar footer), then click **Archetype Manager** in the navigation. The page loads all existing archetypes for the current project.
+  </Step>
+  <Step title="Click '+ Nuevo Atributo'">
+    Click the primary button in the top-right of the page header. The creation form expands inline within a highlighted panel.
+  </Step>
+  <Step title="Fill in the field name">
+    Enter a descriptive name in the **Nombre del Atributo** field. Examples: "Nivel de Magia", "Raza", "Fecha de Coronación", "Clase de Nave".
+  </Step>
+  <Step title="Choose the data type">
+    Select one of the six supported field types from the **Tipo de Dato** dropdown:
+
+    | Type | Description |
+    |---|---|
+    | `text` | Short single-line text |
+    | `long_text` | Multi-line textarea |
+    | `number` | Numeric value |
+    | `date` | Date picker |
+    | `boolean` | Yes/No toggle (Interruptor) |
+    | `select` | Dropdown list (options defined in metadata) |
+  </Step>
+  <Step title="Assign a category">
+    Enter a **Categoría** label (e.g., "Apariencia", "Estadísticas", "Biografía"). Category names group related fields into collapsible sections in the entity editor sidebar.
+  </Step>
+  <Step title="Set the scope">
+    Choose **Global** to apply the field to all entity types in the project, or **Específico** to restrict it to one type. If Específico is selected, choose the target type from the dropdown: `PERSONAJE`, `LUGAR`, `ORGANIZACION`, `OBJETO`, or `EVENTO`.
+  </Step>
+  <Step title="Toggle required">
+    Check **Es obligatorio** if the field must be filled before an entity can be saved. Required fields are visually flagged in the entity editor.
+  </Step>
+  <Step title="Save">
+    Click **Establecer Ley** to save the new archetype. It immediately appears in the archetype list and will render as a field in all relevant entity editors.
+  </Step>
+</Steps>
+
+## TemplateUseCase Methods
+
+The `TemplateUseCase` class (`src/features/Settings/application/TemplateUseCase.ts`) is the application-layer interface for all archetype and attribute-value operations:
+
+```ts
+// ── Archetype (Plantilla) CRUD ──────────────────────────────────────────
+
+/** Fetch all archetypes for a project (global + project-specific) */
+static async getTemplates(projectId: number): Promise<Plantilla[]>
+
+/** Create a new archetype field definition */
+static async createTemplate(
+  data: Omit<Plantilla, 'id' | 'created_at'>
+): Promise<Plantilla>
+
+/** Update an existing archetype */
+static async updateTemplate(
+  templateId: number,
+  data: Partial<Omit<Plantilla, 'id' | 'project_id'>>
+): Promise<void>
+
+/** Delete an archetype (cascades to Valor records per DB rules) */
+static async deleteTemplate(templateId: number): Promise<void>
+
+/** Get project folders (for category filtering) */
+static async getProjectFolders(projectId: number): Promise<Carpeta[]>
+
+// ── Entity Attribute Values (EAV) ───────────────────────────────────────
+
+/** Get all attribute values assigned to a specific entity */
+static async getEntityValues(entityId: number): Promise<Valor[]>
+
+/** Add a new attribute value for an entity */
+static async addEntityValue(
+  entityId: number,
+  templateId: number,
+  value: string
+): Promise<void>
+
+/** Update an existing attribute value */
+static async updateEntityValue(valueId: number, newValue: string): Promise<void>
+
+/** Remove an attribute value from an entity */
+static async deleteEntityValue(valueId: number): Promise<void>
+```
+
+## The Plantilla Interface
+
+Every archetype is stored as a `Plantilla` record. The full TypeScript interface from `database.ts` is:
+
+```ts
+export interface Plantilla {
+  id: number;
+  nombre: string;            // Field label shown in the UI
+  tipo: string;              // "text" | "long_text" | "number" | "date" | "boolean" | "select"
+  valor_defecto: string | null;  // Default value pre-filled in new entities
+  metadata: string | null;   // JSON string (e.g., select options list)
+  es_obligatorio: boolean | number; // Whether the field is required
+  project_id: number;        // Owning project
+  aplica_a_todo: boolean | number;  // 1 = all entity types, 0 = tipo_objetivo only
+  tipo_objetivo: string | null;     // "PERSONAJE" | "LUGAR" | "ORGANIZACION" | "OBJETO" | "EVENTO"
+  categoria: string | null;  // Grouping label for the entity editor sidebar
+  orden: number;             // Display order within the category
+  created_at: string;
+}
+```
+
+And the `Valor` record that stores the actual data per entity:
+
+```ts
+export interface Valor {
+  id: number;
+  entidad_id: number;    // The entity this value belongs to
+  plantilla_id: number;  // The Plantilla (field definition) this value fulfills
+  valor: string | null;  // The stored value as a string
+  updated_at: string;
+  plantilla?: Plantilla; // Optionally joined for display
+}
+```
+
+## Editing Existing Archetypes
+
+The archetype list on the Archetype Manager page displays every `Plantilla` for the current project. Each row shows:
+
+- **Field name** (`tpl.nombre`) in bold uppercase
+- **Type badge** (`tpl.tipo`) as a small colored chip
+- **Category** and **Scope** (Global or `Solo ${tipo_objetivo}`) as metadata labels
+- **Edit** and **Delete** action buttons that appear on hover
+
+Click **Edit** (pencil icon) on a row to load its data back into the form. The submit button changes to **Actualizar Regla**. Saving writes the changes via `TemplateUseCase.updateTemplate()`.
+
+Click **Delete** (trash icon) to remove the archetype. This also removes all `Valor` records associated with that `Plantilla` across all entities in the project (cascade behavior is enforced at the database level).
+
+## Bulk Editing Attribute Values
+
+After archetypes are defined, you can fill in values for many entities at once using the **tabular World Bible view**. This view renders all entities of a given type in a spreadsheet-like grid where each custom attribute column corresponds to a `Plantilla`. Click any cell to edit the `Valor` inline without opening the full entity editor.
+
+<Tip>
+  Use the **Categoría** field to group related attributes. For example, group `"Height"`, `"Eye Color"`, and `"Hair Color"` under `"Appearance"`, and `"Strength"`, `"Agility"`, and `"Magic Level"` under `"Stats"`. The entity editor sidebar renders each category as a collapsible section, keeping the attribute list navigable even for entities with dozens of custom fields.
+</Tip>

@@ -1,0 +1,144 @@
+---
+title: "Local Development Setup for Chronos Atlas"
+sidebarTitle: "Dev Setup"
+description: "Set up a Chronos Atlas development environment — install Node.js, Java 21, clone the repo, run the Vite frontend and Spring/Jetty backend, and verify the architecture."
+---
+
+This guide walks you through standing up a complete local development environment for Chronos Atlas — a local-first worldbuilding desktop application. By the end you will have the Vite frontend dev server running alongside the Java 21 Spring/Jetty auxiliary backend, with path aliases resolved correctly and the architecture guardrail script available to validate structural rules at any time.
+
+## Prerequisites
+
+<Info>
+  Before you begin, make sure the following tools are available on your machine:
+
+  - **Node.js 18 or higher** — used to run the Vite dev server, `npm install`, and the architecture-check script
+  - **Java 21 (JDK)** — required by the Spring/Jetty auxiliary backend (`maven.compiler.source=21`)
+  - **Maven 3.x** — or use the included `mvnw.cmd` wrapper in the `backend/` directory (no separate installation needed)
+  - **A modern browser** — Chrome or Edge (Chromium 86+) is strongly recommended; Chromium provides full OPFS (Origin Private File System) support, which is required for the SQLite WASM persistence layer
+</Info>
+
+## Clone and install
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/Fixius50/WorlBuilding-Writting-App.git
+    cd WorlBuilding-Writting-App
+    ```
+  </Step>
+
+  <Step title="Install frontend dependencies">
+    All npm dependencies are scoped to the `frontend/` sub-directory:
+
+    ```bash
+    cd frontend
+    npm install
+    ```
+
+    This installs React 19, Vite 6, Zustand, TanStack Query, TanStack Table, MapLibre, Deck.gl, Tiptap, Tailwind CSS, SQLocal, and all other runtime and dev dependencies declared in `frontend/package.json`.
+  </Step>
+
+  <Step title="Optional: Verify TypeScript compilation">
+    Run a type-check pass without emitting output to catch any ambient type issues before starting the dev server:
+
+    ```bash
+    npx tsc --noEmit
+    ```
+
+    The project uses `strict: true`, `noImplicitAny: true`, and `isolatedModules: true` in `tsconfig.json`, so this is a reliable early-warning step.
+  </Step>
+</Steps>
+
+## Starting the frontend
+
+All frontend scripts are defined in `frontend/package.json` and run from the `frontend/` directory.
+
+| Command | Description |
+|---|---|
+| `npm run dev` | Starts the Vite dev server on port 5173 (strict port) with HMR |
+| `npm run build` | Compiles a production bundle into `frontend/dist/` |
+| `npm run preview` | Serves the production build locally for final verification |
+
+```bash
+# Development server (hot module replacement enabled)
+npm run dev
+
+# Production build
+npm run build
+
+# Preview the production bundle
+npm run preview
+```
+
+The dev server proxies all `/api` requests to `http://localhost:8080`, so the frontend and backend can run concurrently without CORS issues. It also sets the `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: credentialless` headers required by the SQLite WASM worker.
+
+## Starting the backend
+
+The auxiliary backend is a Java 21 Spring Web MVC application embedded in a Jetty server. It provides file-system bridge endpoints, snapshot/backup support, and utility endpoints consumed by the frontend via the `/api` proxy.
+
+<CodeGroup>
+  ```bat Windows (run-app.bat)
+  :: From the project root, run the orchestration script:
+  scripts\run-app.bat
+  ```
+
+  ```bat Manual Maven (backend only)
+  cd backend
+  mvnw.cmd compile exec:java -Dexec.mainClass=com.worldbuilding.core.AuxServerApplication
+  ```
+
+  ```bat Build a self-contained JAR
+  cd backend
+  mvnw.cmd -DskipTests package
+  :: Output: backend/target/aux-server-1.0.0.jar
+  ```
+</CodeGroup>
+
+The `scripts\run-app.bat` orchestration script handles more than a simple start — it:
+1. Kills any process already listening on port 8080 to avoid conflicts with previous runs
+2. Starts the backend in the background and waits until port 8080 is confirmed `LISTENING`
+3. Finds the next available port starting at 5173 for the frontend
+4. Launches `npm run dev` in the `frontend/` directory with the resolved port
+
+When running manually, start the backend first and confirm it is ready before launching the frontend dev server.
+
+## Verifying the setup
+
+Once both services are running, open your browser and navigate to `http://localhost:5173` (or the port reported by `run-app.bat`). A correctly configured environment will:
+
+- Load the Chronos Atlas shell with all navigation modules accessible
+- Allow map uploads (routed through the backend file-system bridge on port 8080)
+- Successfully compile fonts in the Linguistics module (uses `opentype.js` and backend font endpoints)
+- Show no OPFS or COOP/COEP errors in the browser console
+
+If the browser console shows `SharedArrayBuffer is not defined` or similar WASM worker errors, confirm that the `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy` response headers are present — these are set automatically by the Vite dev server configuration but may need to be configured separately for production deployments.
+
+## TypeScript path aliases
+
+Chronos Atlas defines a rich set of path aliases so that imports stay clean and independent of physical directory depth. The aliases are declared in two places that must stay in sync: **`vite.config.ts`** (for the Vite bundler) and **`tsconfig.json`** (for the TypeScript language server and `tsc`).
+
+Key aliases used across the codebase:
+
+| Alias | Resolves to |
+|---|---|
+| `@features/*` | `src/features/*` |
+| `@components` | `src/features/Shared/index` |
+| `@components/*` | `src/features/Shared/*` |
+| `@domain/maps` | `src/features/Maps/domain/maps` |
+| `@domain/timeline` | `src/features/Timeline/domain/timeline` |
+| `@domain/writing` | `src/features/Writing/domain/writing` |
+| `@domain/linguistics` | `src/features/Linguistics/domain/linguistics` |
+| `@domain/graph` | `src/features/Graph/domain/graph` |
+| `@repositories/*` | `src/infrastructure/localDB/repositories/*` |
+| `@infrastructure/*` | `src/infrastructure/*` |
+| `@network` | `src/infrastructure/network` |
+| `@database` | `src/infrastructure/localDB/client` |
+| `@context/*` | `src/features/App/context/*` |
+| `@utils/*` | `src/infrastructure/utils/*` |
+| `@locales/*` | `src/locales/*` |
+
+Always use these aliases instead of relative `../` chains when importing across feature or infrastructure boundaries. Deep imports into another feature's internal folders are a guardrail violation — see the [Architecture Guardrails](/development/architecture-guardrails) page for details.
+
+<Note>
+  **OPFS browser support:** The SQLite WASM persistence layer (SQLocal) requires the Origin Private File System API. **Chrome and Edge (Chromium 86+)** provide full OPFS support and are the recommended browsers for development. **Firefox** has partial OPFS support — basic reads and writes work but some advanced worker APIs may behave differently. **Safari** has introduced OPFS support in recent versions, but edge-case behaviour with the WASM worker may vary. When testing storage-heavy features such as world snapshots or large map imports, always verify on a Chromium-based browser first.
+</Note>

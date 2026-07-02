@@ -1,0 +1,124 @@
+---
+title: "Linguistics: Build Custom Languages and Fonts for Your World"
+sidebarTitle: "Linguistics"
+description: "Chronos Atlas's Glyph Foundry lets you design constructed languages — create custom glyphs, build lexicons, define syllable rules, and export real .ttf fonts."
+---
+
+The Linguistics module — internally called the **Glyph Foundry** — is a self-contained constructed-language workshop built into Chronos Atlas. It lets you design a writing system from scratch: draw the individual glyphs of your alphabet, build a word lexicon with grammatical annotations, define the phonotactic rules that govern how words are formed, and ultimately compile all of that work into a real `.ttf` TrueType font that can be installed system-wide or used in any design tool. All language data is stored locally in SQLite WASM (SQLocal) in the browser's OPFS.
+
+## Language Hub
+
+The Language Hub is the entry point of the Linguistics module. It displays all constructed languages (`conlang` entities) that exist within the current project as a grid of cards. Each card shows the language name, its writing system type (Alphabet, Abjad, Syllabary, or Abugida), and a count of its current glyph and word inventory.
+
+From the Hub you can:
+
+- **Create a new language** — opens the language setup form where you choose a name and a base writing system type.
+- **Open an existing language** — navigates into that language's full editing environment.
+- **Delete a language** — removes the language and all its associated glyphs, words, and syllable rules from the local database.
+
+The four supported writing system types are defined in `linguistics.ts`:
+
+| Type ID | Name | Description |
+|---|---|---|
+| `ALPHABET` | Alphabet | One symbol per phoneme. |
+| `ABJAD` | Abjad | Consonants marked; vowels optional or omitted. |
+| `SYLLABARY` | Syllabary | One symbol per syllable. |
+| `ABUGIDA` | Abugida | Consonant base characters with vowel diacritics. |
+
+## Glyph Editor
+
+The Glyph Editor is the drawing canvas where you design each individual symbol of your language's writing system. Key features include:
+
+- **Vector drawing canvas** — draw glyphs using a Konva-backed raster canvas with shape primitives (`Shape`) organized into named `Layer` objects. Each layer tracks its own `shapes` array, visibility, and lock state.
+- **Character mapping** — every glyph is bound to a specific character it represents and a Unicode code point (`unicodeCode`). This mapping is what the font compiler uses to assign glyphs to the correct positions in the `.ttf` file.
+- **SVG path export** — when a glyph drawing session is finalized, the canvas content is serialized to an SVG path string and stored in the entity's `contenido_json` field as `svgPathData`. This path is later passed directly to the font compiler.
+- **Layers panel** — manage multiple drawing layers per glyph, toggle visibility, and lock layers to prevent accidental edits while refining details on another layer.
+
+## Lexicon Manager
+
+The Lexicon Manager is the word database for your language. Each word entry is stored as a `Word` record, which extends the base `Entidad` interface with linguistics-specific fields:
+
+```typescript
+export interface Word extends Omit<Entidad, "id"> {
+  id: number;
+  lema: string;
+  palabraOriginal?: string;
+  categoriaGramatical: string;
+  definicion: string;
+  traduccionEspanol?: string;
+  genero?: string;
+  notas?: string;
+  svgPathData?: string;
+  rawEditorData?: string;
+  unicodeCode?: string;
+  isNew?: boolean;
+  placeholder?: boolean;
+}
+```
+
+Each word entry captures:
+
+- `lema` — the canonical headword form of the word.
+- `categoriaGramatical` — grammatical category (noun, verb, adjective, etc.).
+- `definicion` — the in-world definition of the word.
+- `traduccionEspanol` — a translation gloss for reference.
+- `genero` — grammatical gender, if applicable to the language.
+- `notas` — free-text field for etymology, usage notes, or phonology comments.
+
+## Syllable Rules
+
+The Syllable Rules composer lets you define the phonotactic patterns that govern how words can be constructed in your language. Rules are expressed as CV patterns — sequences of Consonant (`C`) and Vowel (`V`) slots, such as `CV`, `CVC`, `CCVC`, or `CVV`. Once rules are defined, the procedural word generator uses them to produce new candidate words that are phonologically legal in your language, which you can then add to the Lexicon or discard.
+
+The **Advanced Linguistics** panel extends this with two additional tools:
+
+- **Conjugation engine** — apply a suffix rule to a comma-separated list of base words. Rules like `-[e]s` conditionally append characters based on the final letter of the stem, enabling basic morphological paradigm generation.
+- **Phonetic evolution simulator** — apply systematic sound changes across a word list (e.g., voicing intervocalic stops: `p→b`, `t→d`, `k→g`), useful for deriving daughter languages or historical dialect variation from a proto-language.
+
+## Font Export
+
+Once your glyph inventory is complete, the Glyph Foundry can compile all glyphs into a real `.ttf` TrueType font file via the Java auxiliary backend.
+
+```bash
+POST /linguistics/font/compile
+```
+
+The request body must contain a `config` object with font metadata and a `glyphs` array, one entry per drawn glyph:
+
+```json
+{
+  "config": {
+    "fontFamily": "Elvish Script",
+    "version": "1.0",
+    "copyright": "My World 2025",
+    "unitsPerEm": 1000,
+    "ascender": 800,
+    "descender": -200
+  },
+  "glyphs": [
+    {
+      "charRepresented": "a",
+      "unicodePoint": "U+0061",
+      "svgPath": "M 100 0 L 200 400 L 0 400 Z",
+      "width": 300,
+      "height": 1000
+    }
+  ]
+}
+```
+
+The `config` fields map directly to the `FontConfig` model in the backend:
+
+| Field | Description |
+|---|---|
+| `fontFamily` | The name of the font family as it will appear in font menus. |
+| `version` | A semantic version string for the font file. |
+| `copyright` | Copyright or attribution notice embedded in the font metadata. |
+| `unitsPerEm` | The em-square size in font units. `1000` is the standard for TrueType. |
+| `ascender` | The ascender height in font units (typically 80% of `unitsPerEm`). |
+| `descender` | The descender depth in font units (negative value). |
+
+Each entry in the `glyphs` array corresponds to one `ConlangGlyph` record. The `svgPath` value is the path data string stored in the glyph's `contenido_json` after drawing. The backend's `FontCompilerService.compileTrueTypeFont` processes the config and glyphs and returns the compiled `.ttf` as a binary stream download.
+
+<Note>
+  The Java auxiliary backend must be running to export fonts. If it is offline, the **Compile Font** button in the Glyph Foundry will be unavailable. Your glyph drawings and lexicon remain safely stored in the local OPFS database regardless of the backend's status.
+</Note>

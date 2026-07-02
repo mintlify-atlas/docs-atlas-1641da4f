@@ -1,0 +1,124 @@
+---
+title: "App Settings: Fonts, Language, and Interface Preferences"
+sidebarTitle: "App Settings"
+description: "Configure Chronos Atlas through the Settings panel — choose UI font, editor font, interface language (English/Spanish), and other display preferences."
+---
+
+The Settings module is the central control panel for your Chronos Atlas experience. All preferences — visual themes, typography, interface language, panel layout mode, and backup configuration — are adjusted here and persisted immediately to the local SQLite database via `SettingsUseCase.saveSettings()`. Settings are per-installation and apply across all projects on the device.
+
+## Accessing Settings
+
+Click the **gear icon** (`settings`) in the footer of the left sidebar from any screen in the application. This navigates to the Settings route, which hosts two top-level tabs:
+
+- **General / Sync** — profile, backup, and synchronization options
+- **Appearance & Editor** — themes, fonts, panel layout, and language
+
+<Note>
+  Settings are stored as key-value pairs in the local SQLite database using `settingsService.set(key, value)`. They are loaded at application startup via `SettingsUseCase.loadSettings()` and applied globally.
+</Note>
+
+## Language
+
+Chronos Atlas ships with full localization support for **English** (`en`) and **Spanish / Castellano** (`es`). Language selection is managed by the `LanguageContext`, with locale files located in `frontend/src/locales/`.
+
+To switch languages:
+
+<Steps>
+  <Step title="Open Settings">
+    Click the gear icon in the bottom of the left sidebar.
+  </Step>
+  <Step title="Go to Appearance & Editor">
+    Select the **Appearance & Editor** tab in the Settings header navigation.
+  </Step>
+  <Step title="Scroll to Language Preference">
+    Find the **Preferencia de Idioma / Language** section at the bottom of the Typography panel.
+  </Step>
+  <Step title="Select your language">
+    Click **🇪🇸 Castellano** or **🇺🇸 English**. The interface updates immediately via `changeLanguage(locale)` without a page reload.
+  </Step>
+</Steps>
+
+The language preference is stored in the `LanguageContext` and passed down to all components. The default language is Spanish (`es`).
+
+## Font Selection
+
+The **Typography & Reading** section of the Appearance tab provides a dynamic font picker for the application's UI font. Your selection is applied immediately to the entire interface and persisted as `settings.font`.
+
+Available fonts:
+
+| Font | Label | Best for |
+|---|---|---|
+| `Lexend` | Lexend (UI Moderna) | Clean modern interfaces |
+| `Outfit` | Outfit (Sleek) | Default — sleek headlines |
+| `Cormorant Garamond` | Cormorant (Legendaria) | Long-form reading, lore documents |
+| `Playfair Display` | Playfair (Elegante) | Elegant editorial layouts |
+| `JetBrains Mono` | JetBrains Mono (Codex) | Technical / data-dense views |
+
+The font is applied as an inline `fontFamily` style directly in the select preview element, so you see the font rendered in its own face before committing.
+
+A **font size slider** (range `12px`–`24px`, default `16px`) lets you adjust the base reading size globally. The current value is displayed live next to the slider label.
+
+```ts
+// AppSettings interface from SettingsUseCase.ts
+export interface AppSettings {
+  theme: string;
+  font: string;
+  fontSize: number;
+  panelMode: string;
+  autoBackup: boolean;
+}
+```
+
+Settings are saved and loaded through:
+
+```ts
+// Persist settings to SQLite
+await SettingsUseCase.saveSettings(settings);
+
+// Load settings on startup
+const saved = await SettingsUseCase.loadSettings();
+```
+
+## Theme
+
+The **Aesthetics of the System** section lets you choose both a **color theme** and a **dark/light mode** variant. Three named themes are available:
+
+| Theme ID | Label | Character |
+|---|---|---|
+| `writer` | Escritor | Pure black-and-white, minimal |
+| `deep_space` | Deep Space | Near-black background, indigo primary |
+| `nebula` | Nebula | Deep violet background, lavender primary |
+
+Each theme has a **Dark** and **Light** variant (e.g., `deep_space` / `deep_space_light`). The active variant is toggled via the Dark/Light button pair inside each theme card. The selected value is stored as `settings.theme` (e.g., `"nebula_light"`).
+
+For detailed information about CSS variables, color tokens, and the full token system used by themes, see the [Themes and Color System](/settings/themes) page.
+
+## Panel Layout
+
+The **Panel Architecture** section controls how the main content panels are arranged in the UI. Three modes are available:
+
+<CardGroup cols={3}>
+  <Card title="Classic" icon="layout">
+    **Paneles Acoplados** — traditional three-column layout with a left sidebar, main content area, and right detail panel docked side by side.
+  </Card>
+  <Card title="Binder" icon="book-open">
+    **Pestañas Izquierdas** — left panel organized as tabs, with the main content taking full remaining width.
+  </Card>
+  <Card title="Floating" icon="window-restore">
+    **Modales Superiores** — side panels appear as floating modals above the main content for maximum immersion.
+  </Card>
+</CardGroup>
+
+The selected mode is stored as `settings.panelMode` and applied at the layout level on next navigation.
+
+## Backup and Sync
+
+The **Sync & Backup** section (General tab) manages data persistence and export:
+
+- **Import** — upload a `.db`, `.sqlite`, `.sqlite3`, or `.zip` file to overwrite the local database. ZIP imports are processed asynchronously by the Java backend via a polling job. Handled by `SettingsUseCase.importDatabase(file)`.
+- **Export (ZIP)** — packages the full OPFS database and all media assets into a ZIP archive for download. Calls `SettingsUseCase.exportBackup()`.
+- **Auto Sync** — a toggle that enables automatic backup to the local server every 10 minutes when there are pending changes. Stored as `settings.autoBackup`.
+
+## Project-level Settings
+
+Some preferences are scoped to a specific project rather than the global application. Custom attribute templates — which add tailored fields to entity types — are configured per-project through the **Archetype Manager**. See [Archetype Manager](/settings/archetype-manager) for details.

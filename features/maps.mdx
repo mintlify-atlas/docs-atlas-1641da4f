@@ -1,0 +1,86 @@
+---
+title: "Interactive Maps: Draw and Annotate Your World"
+sidebarTitle: "Maps"
+description: "Create custom world maps in Chronos Atlas — upload images, draw territories with Deck.gl, add markers, and link map regions to world entities."
+---
+
+The Maps module brings your world's geography to life as an interactive, annotatable canvas. You can work with a real image of your hand-drawn map, reference an image hosted online, or start from a blank canvas — then layer on polygons, markers, lines, and annotations using a full drawing toolkit powered by MapLibre GL and Deck.gl. Map metadata (markers, layers, connections) is stored locally in SQLite WASM via the entity's `contenido_json` field, while the image assets themselves are managed by the Java auxiliary backend.
+
+<Note>
+  The Java auxiliary backend must be running to upload a new map image, paste a URL, or create a blank canvas. If the backend is offline, the map creation flow will be unavailable. Existing maps with already-stored assets continue to render normally without the backend.
+</Note>
+
+## Creating a Map
+
+Every map in Chronos Atlas begins by establishing its base image asset. There are three ways to create a new map, each backed by a dedicated backend endpoint:
+
+<Steps>
+  <Step title="Upload an image file">
+    Choose an image from your local filesystem (PNG, JPEG, WebP). The frontend sends it to the backend as a multipart upload.
+
+    ```bash
+    POST /mapeditor/assets/{projectName}/upload
+    ```
+
+    **Form params:** `name` (map display name), `file` (the image file). The backend's `MapAssetProcessor` writes the file to the `maps_assets/` directory on disk and returns a `MapAsset` object with the stored filename.
+  </Step>
+  <Step title="Paste an image URL">
+    Provide a publicly accessible image URL. The backend fetches and stores the remote image server-side.
+
+    ```bash
+    POST /mapeditor/assets/{projectName}/upload-url
+    ```
+
+    **Form params:** `name` (map display name), `url` (the remote image URL). Useful for referencing maps you've uploaded to an image host or CDN.
+  </Step>
+  <Step title="Create a blank canvas">
+    Skip the image entirely and start drawing on a white canvas.
+
+    ```bash
+    POST /mapeditor/assets/{projectName}/blank
+    ```
+
+    **Form params:** `name` (map display name). The backend's `MapAssetProcessor.createBlankCanvas` generates a blank image file and stores it in `maps_assets/`, returning the same `MapAsset` structure as the other two methods.
+  </Step>
+</Steps>
+
+Once the asset is registered, the frontend calls `MapUseCase.createMap` to persist the new map as an `Entidad` of type `MAPA` in the local SQLite database, storing the image URL returned by the backend in the `imagen_url` field.
+
+## Map Editor
+
+After opening a map, the full Map Editor provides a layered drawing environment built on two rendering technologies working in tandem:
+
+- **MapLibre GL** — renders the base layer (the uploaded or blank image) with smooth pan and zoom controls. The base layer is configured as an image source at coordinates that span the full canvas extent.
+- **Deck.gl editable layers** — sit above the MapLibre base and handle all interactive drawing. Polygons, polylines, and point markers are drawn as GeoJSON `Feature` objects collected inside a `GeoFeatureCollection`.
+
+The **MapEditor toolbar** exposes the following drawing tools:
+
+| Tool | Description |
+|---|---|
+| Polygon | Click to place vertices; close the shape to create a filled territory region. |
+| Marker | Click to place a `MapMarker` at a coordinate, optionally labeled and linked to an entity. |
+| Line | Click to draw a `MapConnection` between two points; supports dashed lines and custom colors. |
+| Select / Move | Click any drawn feature to select and reposition it. |
+| Eraser | Remove a selected feature from the canvas. |
+
+The full drawing state — layers, markers, connections, zoom level, and center coordinates — is serialized as a `MapAttributes` JSON object and saved to the entity's `contenido_json` field via `MapUseCase.updateMap`.
+
+## Map Atlas Sidebar
+
+The left sidebar of the Maps module is the **Map Atlas**, a panel that lists every map belonging to the current project. It mirrors the folder-tree pattern used in the World Bible: maps are grouped by their `carpeta_id` association, and a search box at the top filters the list by name in real time. Clicking any entry in the Atlas sidebar loads that map into the editor area and deselects the previous one cleanly.
+
+## Territory Linking
+
+Drawn polygon territories on a map can be linked to **Territory entities** (type `lugar`) in the World Bible. Each `MapMarker` carries an optional `entityId` field that stores the ID of the corresponding `Entidad`. When a marker or polygon region has an `entityId` set, clicking it in the editor surfaces a quick-link button that navigates directly to that entity's page in the World Bible, keeping geography and lore tightly connected.
+
+The relationship is bidirectional in intent: Territory entities in the World Bible can reference a map region, while the map region references back to the entity, allowing the same piece of geography to be documented in prose (World Bible) and visualised spatially (Maps) without duplication.
+
+## Asset Storage
+
+Map image assets are stored **server-side** in the `maps_assets/` directory managed by the Java backend — they are not placed in the browser's OPFS. The backend uses the naming convention `{projectName}_{fileName}` when writing files to disk. A stored asset can be retrieved at any time via:
+
+```bash
+GET /mapeditor/assets/{projectName}/download/{fileName}
+```
+
+The response is streamed as `application/octet-stream` with a `Content-Disposition` attachment header. The OPFS database holds only the URL reference (`imagen_url`) to the backend-served asset, keeping binary image data out of the browser's local storage.

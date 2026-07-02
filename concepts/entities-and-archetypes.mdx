@@ -1,0 +1,180 @@
+---
+title: "Entities, Archetypes, and Dynamic Attributes"
+sidebarTitle: "Entities & Archetypes"
+description: "Learn how Chronos Atlas models world elements as Entities with dynamic EAV attributes, and how Archetypes (Templates) define the fields available per entity type."
+---
+
+Everything in your world that has an identity — a character, a nation, a city, an ancient war, a divine plane — is represented in Chronos Atlas as an **Entity** (`Entidad`). Instead of rigid, hardcoded forms, Chronos Atlas uses an **Entity-Attribute-Value (EAV)** model: each Entity has a fixed set of core fields (name, type, description) plus an unlimited number of dynamic attribute values whose definitions are stored separately as **Archetypes** (`Plantillas`). This means your character sheet for a fantasy novel can look completely different from the one for a sci-fi campaign, and both can evolve over time without any schema migrations.
+
+## Entity Types
+
+Every `Entidad` record carries a `tipo` string that places it into one of the built-in archetype categories. These categories determine which archetypes are offered in the Archetype Manager and how the entity is grouped in dashboards and filters.
+
+<CardGroup cols={2}>
+  <Card title="Individual" icon="user">
+    **Characters and persons.** Any sentient being with an individual identity: heroes, villains, gods, historical figures. This is the most common entity type and typically carries the richest set of custom attributes (appearance, skills, backstory, etc.).
+  </Card>
+  <Card title="Collective" icon="users">
+    **Factions, organizations, and groups.** Empires, guilds, cults, armies, or any named group that acts as a unit in your world. Attributes often describe hierarchy, ideology, resources, and membership.
+  </Card>
+  <Card title="Territory" icon="map">
+    **Locations and regions.** Cities, countries, dungeons, planets, or any defined place. Attributes typically cover geography, climate, population, and political allegiance.
+  </Card>
+  <Card title="Event" icon="calendar">
+    **Historical events and milestones.** Battles, treaties, natural disasters, or any occurrence anchored to your world's timeline. Events can be linked to multiple timeline folders via the `eventos_entidades` table.
+  </Card>
+  <Card title="Cosmic" icon="sparkles">
+    **Planes, dimensions, and metaphysical elements.** The spirit world, astral planes, divine realms, or abstract forces. Particularly useful in high-fantasy or sci-fi settings with multi-layered cosmologies.
+  </Card>
+</CardGroup>
+
+## The `Entidad` Interface
+
+The `Entidad` interface is the core domain type for all world entities, defined in `src/features/App/domain/database.ts`:
+
+```typescript
+export interface Entidad {
+  id: number;
+  nombre: string;
+  slug: string;
+  tipo: string;
+  descripcion: string | null;
+  contenido_json: string | null;
+  project_id: number;
+  carpeta_id: number | null;
+  folder_slug: string | null;
+  imagen_url: string | null;
+  fecha_creacion: string;
+  fecha_actualizacion: string;
+  borrado: number;
+  valores?: Valor[];
+}
+```
+
+Key fields to note:
+
+- **`tipo`** — the archetype category string (e.g. `"Individual"`, `"Collective"`). Drives which `Plantilla` records are offered on the entity's dynamic form.
+- **`contenido_json`** — a freeform JSON blob for module-specific data. In linguistics, for instance, this stores `svgPathData` and glyph layer information.
+- **`carpeta_id`** — the folder this entity belongs to. Can be `null` if the entity sits at the project root.
+- **`borrado`** — soft-delete flag (`0` = active, `1` = trashed). Deleted entities are excluded from all normal queries but remain in the database until permanently purged.
+- **`valores`** — optionally populated array of `Valor` records, representing all dynamic attribute values for this entity.
+
+## `Plantilla` (Template / Archetype)
+
+A `Plantilla` defines a single custom attribute field — its name, data type, default value, and which entity types it applies to. Think of each `Plantilla` as a column definition that is evaluated at runtime rather than baked into the database schema.
+
+```typescript
+export interface Plantilla {
+  id: number;
+  nombre: string;
+  tipo: string;
+  valor_defecto: string | null;
+  metadata: string | null;
+  es_obligatorio: boolean | number;
+  project_id: number;
+  aplica_a_todo: boolean | number;
+  tipo_objetivo: string | null;
+  categoria: string | null;
+  orden: number;
+  created_at: string;
+}
+```
+
+Key fields:
+
+- **`tipo`** — the field widget type: `text`, `short_text`, `number`, `date`, `select`, etc. Drives which form control is rendered.
+- **`metadata`** — a JSON string carrying extra configuration, such as the list of options for a `select` field.
+- **`es_obligatorio`** — marks the field as required; the entity form will block saving if the value is empty.
+- **`aplica_a_todo`** — when `true`, this archetype applies to every entity in the project regardless of `tipo`.
+- **`tipo_objetivo`** — when `aplica_a_todo` is `false`, restricts this field to entities of a specific type (e.g. `"Individual"`).
+- **`categoria`** — a display grouping label used to visually section the dynamic form (e.g. `"Appearance"`, `"Combat Stats"`).
+- **`orden`** — integer controlling the display order within a category.
+
+## `Valor` (Attribute Value)
+
+A `Valor` is a single instantiated attribute value linking one `Entidad` to one `Plantilla`. Together, all `Valor` records for a given entity form its complete dynamic attribute profile.
+
+```typescript
+export interface Valor {
+  id: number;
+  entidad_id: number;
+  plantilla_id: number;
+  valor: string | null;
+  updated_at: string;
+  plantilla?: Plantilla;
+}
+```
+
+The `plantilla` field is optionally populated by the `entityService.getValues()` query, which performs a JOIN so that consumers receive the full field definition alongside the value — without needing a second database round-trip.
+
+## `EntityUseCase` Methods
+
+All entity operations in the UI go through `EntityUseCase`, which delegates to `entityService` in the infrastructure layer. Components and hooks must never call the database directly.
+
+```typescript
+/** Retrieve a single entity by its primary key */
+static async getById(id: number): Promise<Entidad | null>
+
+/** Retrieve all non-deleted entities belonging to a project */
+static async getAllByProject(projectId: number): Promise<Entidad[]>
+
+/** Retrieve entities filtered by type (e.g. for a character roster page) */
+static async getAllByProjectAndType(
+  projectId: number,
+  type: string,
+): Promise<Entidad[]>
+
+/** Retrieve all entities inside a specific folder */
+static async getByFolder(folderId: number): Promise<Entidad[]>
+
+/** Create a new entity */
+static async create(
+  data: Omit<
+    Entidad,
+    "id" | "created_at" | "fecha_creacion" | "fecha_actualizacion" | "borrado"
+  >,
+): Promise<Entidad>
+
+/** Update the base fields of an existing entity */
+static async update(
+  id: number,
+  data: Partial<Omit<Entidad, "id" | "project_id">>,
+): Promise<void>
+
+/** Soft-delete an entity (sets borrado = 1) */
+static async delete(id: number): Promise<void>
+
+/** Move an entity to a different folder (or to the project root) */
+static async move(id: number, targetCarpetaId: number | null): Promise<void>
+```
+
+<Note>
+  `delete` performs a **soft delete** — it sets `borrado = 1` rather than removing the row. Deleted entities are hidden in all standard queries but can be reviewed and restored from the Trash view.
+</Note>
+
+## Creating a Custom Archetype
+
+Custom archetypes let you attach new fields to any entity type in your project — without touching any code or schema files.
+
+<Steps>
+  <Step title="Open the Archetype Manager">
+    Navigate to **Settings → Archetype Manager** in the sidebar. You will see a list of all existing `Plantilla` records for the current project.
+  </Step>
+  <Step title="Create a new field">
+    Click **New Archetype**. Fill in:
+    - **Field name** (`nombre`) — the label shown on the entity form (e.g. *"Alignment"*).
+    - **Field type** (`tipo`) — choose from `text`, `short_text`, `number`, `date`, or `select`. For `select`, add your options in the **Metadata** JSON field.
+    - **Category** (`categoria`) — optional grouping label to section the form.
+    - **Display order** (`orden`) — controls where the field appears relative to others in the same category.
+  </Step>
+  <Step title="Set scope and requirements">
+    Toggle **Applies to all entity types** (`aplica_a_todo`) if the field should appear on every entity. Otherwise, set a **Target type** (`tipo_objetivo`) to restrict it to a specific archetype category. Mark **Required** (`es_obligatorio`) if the field must be filled before saving.
+  </Step>
+  <Step title="Save and use">
+    Click **Save**. The new field will appear immediately on entity forms for the matching entity types in the current project. Existing entities will show the field as empty until a value is provided.
+  </Step>
+</Steps>
+
+<Tip>
+  Custom archetypes are **per-project** — a field you define in one world will not appear in another. This means each project can have its own tailor-made attribute vocabulary without polluting other universes.
+</Tip>

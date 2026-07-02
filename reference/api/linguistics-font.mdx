@@ -1,0 +1,175 @@
+---
+title: "Linguistics Font API: Compile Conlang Glyphs to TTF"
+sidebarTitle: "Font Compile API"
+description: "POST /linguistics/font/compile accepts glyph SVG paths and font metadata, then returns a compiled .ttf TrueType font file for your custom constructed language."
+---
+
+The Font Compile endpoint is the centrepiece of the Glyph Foundry module. After a worldbuilder has designed the individual glyphs of their constructed language inside the SVG canvas editor, this endpoint accepts those glyph definitions — each as an SVG path string with a character mapping and Unicode code point — alongside font-level metadata, and returns a compiled TrueType `.ttf` font file ready for installation and use in any application.
+
+The compilation is handled server-side by `FontCompilerService`, which maps each SVG path into a font glyph at the configured em-square resolution and writes a valid TrueType binary.
+
+<Warning>
+  The Java auxiliary backend must be running to compile fonts. If the backend is unavailable, the "Export Font" action in the Glyph Foundry will not produce a download. Start the backend with `run-app.bat` or `java -jar target/aux-server-1.0.0.jar` before compiling.
+</Warning>
+
+## Base URL
+
+```
+http://localhost:8080/api/linguistics
+```
+
+---
+
+## `POST /linguistics/font/compile`
+
+Compile a set of conlang glyphs and a font configuration into a `.ttf` TrueType font file.
+
+### Request Body
+
+The request body is a JSON object with two top-level keys: `config` and `glyphs`.
+
+### `config` — `FontConfig`
+
+Font-level metadata and typographic metrics applied to the entire font file.
+
+<ParamField body="config.fontFamily" type="string" required>
+  The font family name as it will appear in font pickers and CSS `font-family` declarations (e.g. `"Aethermoor Script"`).
+</ParamField>
+
+<ParamField body="config.version" type="string">
+  Version string embedded in the font's name table (e.g. `"1.0"`, `"0.3-beta"`).
+</ParamField>
+
+<ParamField body="config.copyright" type="string">
+  Copyright notice embedded in the font's name table (e.g. `"© 2025 Jane Doe"`).
+</ParamField>
+
+<ParamField body="config.unitsPerEm" type="number" default="1000">
+  The em-square resolution in font units. Standard values are `1000` (PostScript-derived fonts) and `2048` (TrueType). Glyph coordinates are expressed in these units.
+</ParamField>
+
+<ParamField body="config.ascender" type="number" default="800">
+  The ascender height in font units — the distance from the baseline to the top of the em square. Typically 80% of `unitsPerEm`.
+</ParamField>
+
+<ParamField body="config.descender" type="number" default="-200">
+  The descender depth in font units — the distance from the baseline downward. Expressed as a negative integer. Typically -20% of `unitsPerEm`.
+</ParamField>
+
+### `glyphs` — `ConlangGlyph[]`
+
+An array of individual glyph definitions. Each entry maps one character to one SVG path.
+
+<ParamField body="glyphs[].charRepresented" type="string" required>
+  The character this glyph represents in the conlang's romanisation or transliteration scheme (e.g. `"a"`, `"th"`, `"ʃ"`).
+</ParamField>
+
+<ParamField body="glyphs[].unicodePoint" type="string" required>
+  The Unicode code point to assign this glyph in the compiled font, expressed as a hex string without the `U+` prefix (e.g. `"0061"` for 'a', `"E001"` for a private-use area character).
+</ParamField>
+
+<ParamField body="glyphs[].svgPath" type="string" required>
+  The SVG path `d` attribute string describing the glyph's outline (e.g. `"M 100 700 L 500 700 L 300 100 Z"`). Coordinates are interpreted within the `width` × `height` canvas.
+</ParamField>
+
+<ParamField body="glyphs[].width" type="number" default="1000">
+  The advance width of this glyph in the source canvas coordinate space. Scaled to font units during compilation.
+</ParamField>
+
+<ParamField body="glyphs[].height" type="number" default="1000">
+  The height of the glyph's design canvas in source coordinates. Used to normalise the SVG path coordinates into font units.
+</ParamField>
+
+---
+
+### Response
+
+**`200 OK`** — `application/octet-stream` — a compiled `.ttf` TrueType font file.
+
+The `Content-Disposition` header provides a suggested filename based on the font family name.
+
+---
+
+## Full Request Example
+
+```json
+{
+  "config": {
+    "fontFamily": "Aethermoor Script",
+    "version": "1.0",
+    "copyright": "© 2025 Jane Doe. All rights reserved.",
+    "unitsPerEm": 1000,
+    "ascender": 800,
+    "descender": -200
+  },
+  "glyphs": [
+    {
+      "charRepresented": "a",
+      "unicodePoint": "0061",
+      "svgPath": "M 100 800 L 500 800 L 300 100 Z",
+      "width": 1000,
+      "height": 1000
+    },
+    {
+      "charRepresented": "b",
+      "unicodePoint": "0062",
+      "svgPath": "M 100 100 L 100 800 L 400 800 Q 600 800 600 600 Q 600 450 100 450 Q 600 450 600 250 Q 600 100 100 100 Z",
+      "width": 1000,
+      "height": 1000
+    },
+    {
+      "charRepresented": "æ",
+      "unicodePoint": "E001",
+      "svgPath": "M 50 800 L 300 100 L 550 800 M 120 550 L 480 550",
+      "width": 1000,
+      "height": 1000
+    }
+  ]
+}
+```
+
+## curl Example
+
+```bash
+curl -X POST \
+  http://localhost:8080/api/linguistics/font/compile \
+  -H "Content-Type: application/json" \
+  -d '{
+    "config": {
+      "fontFamily": "Aethermoor Script",
+      "version": "1.0",
+      "copyright": "© 2025 Jane Doe",
+      "unitsPerEm": 1000,
+      "ascender": 800,
+      "descender": -200
+    },
+    "glyphs": [
+      {
+        "charRepresented": "a",
+        "unicodePoint": "0061",
+        "svgPath": "M 100 800 L 500 800 L 300 100 Z",
+        "width": 1000,
+        "height": 1000
+      }
+    ]
+  }' \
+  -o AethermoorScript.ttf
+```
+
+---
+
+## Error Responses
+
+| Status | Condition |
+|---|---|
+| `400 Bad Request` | Malformed JSON or unreachable compiled font path |
+| `404 Not Found` | Compiled font file not found after processing |
+| `500 Internal Server Error` | Font compilation failure (e.g. invalid SVG path, IO error) |
+
+---
+
+## Notes on SVG Path Coordinates
+
+<Tip>
+  The Glyph Foundry canvas editor exports SVG paths in a `1000 × 1000` coordinate space by default (matching `unitsPerEm = 1000`). The `FontCompilerService` normalises path coordinates using the `width` and `height` fields of each glyph — so if your canvas uses a different resolution, set those fields accordingly. The Y-axis in SVG is top-down; the compiler mirrors it to the font coordinate system where Y increases upward from the baseline.
+</Tip>

@@ -1,0 +1,132 @@
+---
+title: "Sync API: Archive JSON Payloads to Local Disk"
+sidebarTitle: "Sync API"
+description: "The /sync endpoint lets the frontend archive JSON sync payloads to a local backup/ directory on disk — used for snapshot archiving of project state."
+---
+
+The `/sync` endpoint provides a lightweight archiving mechanism that lets the Chronos Atlas frontend persist a JSON snapshot of the current project state to the local filesystem. This is used primarily to archive the `SyncRealtimePayload` — a typed snapshot containing the project record, all folders, all entities, and all relationships — as a human-readable `.sync.json` file on disk alongside the SQLite backups.
+
+The endpoint is intentionally minimal: it accepts any JSON object and writes it as a pretty-printed file, making it useful both for automated snapshot archiving and for manual inspection of project state.
+
+<Note>
+  `projectName` is **strictly validated** server-side against the pattern `^[a-zA-Z0-9._-]+$`. Names containing spaces, accented characters, or any other special characters will be rejected with a `400 Bad Request`. Use URL encoding for path construction but ensure the decoded name matches the pattern.
+</Note>
+
+## Base URL
+
+```
+http://localhost:8080/api/sync
+```
+
+---
+
+## `POST /sync/payload/{projectName}`
+
+Archive a JSON payload to disk as `backup/{projectName}.sync.json`. If the file already exists it is overwritten. The `backup/` directory is created automatically on server startup if absent.
+
+<ParamField path="projectName" type="string" required>
+  The project identifier. Must match `^[a-zA-Z0-9._-]+$` exactly (alphanumeric characters plus `.`, `_`, and `-`). Spaces, accents, and Unicode outside ASCII are not permitted.
+</ParamField>
+
+<ParamField body="(root)" type="object" required>
+  Any valid JSON object. The server serialises it with indented pretty-print formatting. The canonical payload shape used by the frontend `syncService` is the `SyncRealtimePayload` structure shown below, but the endpoint accepts any map of string keys to values.
+</ParamField>
+
+**Response — `200 OK`**
+
+<ResponseField name="success" type="boolean">
+  `true` when the file was written successfully.
+</ResponseField>
+<ResponseField name="message" type="string">
+  Human-readable confirmation: `"Payload archivado correctamente."`
+</ResponseField>
+<ResponseField name="filePath" type="string">
+  The resolved path of the written file, e.g. `backup/Aethermoor.sync.json`.
+</ResponseField>
+
+**Response — `400 Bad Request`**
+
+<ResponseField name="success" type="boolean">
+  `false`
+</ResponseField>
+<ResponseField name="message" type="string">
+  `"projectName inválido."` — returned when the name fails regex validation.
+</ResponseField>
+
+**Response — `500 Internal Server Error`**
+
+<ResponseField name="success" type="boolean">
+  `false`
+</ResponseField>
+<ResponseField name="message" type="string">
+  `"No se pudo archivar payload: ..."` with the underlying IO error message.
+</ResponseField>
+
+---
+
+## Example
+
+The following example archives a `SyncRealtimePayload` snapshot for the project `Aethermoor`:
+
+```bash
+curl -X POST \
+  http://localhost:8080/api/sync/payload/Aethermoor \
+  -H "Content-Type: application/json" \
+  -d '{
+    "schemaVersion": 1,
+    "exportedAt": "2025-01-15T14:30:00.000Z",
+    "project": {
+      "id": 1,
+      "nombre": "Aethermoor",
+      "descripcion": "A gothic fantasy world.",
+      "fecha_creacion": "2024-11-01T10:00:00.000Z",
+      "ultima_modificacion": "2025-01-15T14:29:58.000Z"
+    },
+    "folders": [],
+    "entities": [],
+    "relationships": []
+  }'
+```
+
+**Success response:**
+
+```json
+{
+  "success": true,
+  "message": "Payload archivado correctamente.",
+  "filePath": "backup/Aethermoor.sync.json"
+}
+```
+
+---
+
+## Frontend Integration
+
+The `syncService` in `src/infrastructure/network/syncService.ts` calls this endpoint through `archiveRealtimePayload()`:
+
+```typescript
+import { syncService } from "@network/syncService";
+
+// Build a typed snapshot of the current project and archive it
+const snapshot = await syncService.buildRealtimeSnapshot("Aethermoor");
+if (snapshot.success && snapshot.payload) {
+  const result = await syncService.archiveRealtimePayload(
+    "Aethermoor",
+    snapshot.payload
+  );
+  console.log(result.message);
+}
+```
+
+The `SyncRealtimePayload` type includes:
+
+```typescript
+export interface SyncRealtimePayload {
+  schemaVersion: number;
+  exportedAt: string;      // ISO 8601 timestamp
+  project: Proyecto;
+  folders: Carpeta[];
+  entities: Entidad[];
+  relationships: Relacion[];
+}
+```

@@ -1,0 +1,157 @@
+---
+title: "Contributing to Chronos Atlas"
+sidebarTitle: "Contributing"
+description: "Learn how to contribute to Chronos Atlas — understand the feature-first architecture, follow placement rules, update documentation, and submit changes."
+---
+
+Chronos Atlas is a local-first worldbuilding engine built with passion and a commitment to clean architecture. Whether you are fixing a bug in the Linguistics font compiler, adding a panel to the Maps module, or proposing an entirely new feature slice, your contributions are welcome — as long as they respect the vertical-slice boundaries, keep SQL out of components, and leave the `Shared` kernel free of business logic. Read this page before opening your first pull request.
+
+## Project structure at a glance
+
+The repository root contains three main working areas and a set of supporting files:
+
+```text
+WorlBuilding-Writting-App/
+├── frontend/          # React + TypeScript + Vite application
+│   ├── src/
+│   │   ├── features/  # Vertical slices (Entities, Maps, Timeline, Writing, …)
+│   │   │   └── Shared/  # Transversal UI kernel (primitives, navigation, modals, …)
+│   │   └── infrastructure/  # localDB (SQLite WASM), network, utils
+│   ├── scripts/       # architecture-check.mjs and other build utilities
+│   ├── reports/       # architecture-guard-report.json (generated, git-tracked)
+│   ├── package.json
+│   └── vite.config.ts
+├── backend/           # Java 21 Spring/Jetty auxiliary server
+│   ├── src/main/java/com/worldbuilding/
+│   │   ├── core/      # AuxServerApplication entry point
+│   │   └── domains/   # Domain-scoped controllers and services
+│   └── pom.xml
+├── Docs/              # Living technical documentation (source of truth)
+│   ├── 00_Reglas_Maestras.md
+│   ├── 01_Estrategia_Tecnica.md
+│   ├── 02_Diseño_UI_UX.md
+│   ├── 03_Roadmap_Vivo.md
+│   └── 04_Arquitectura_Workspaces.md
+├── scripts/           # Orchestration scripts (run-app.bat)
+├── LICENSE.txt        # Business Source License 1.1
+└── LICENSE-MPL-2.0.txt
+```
+
+## Before you add a feature
+
+Follow these steps in order before writing any new code. Skipping them is the most common source of architectural violations and duplicate effort.
+
+<Steps>
+  <Step title="Read the technical strategy document">
+    Open `Docs/01_Estrategia_Tecnica.md` and review the current Feature-Sliced Architecture rules, the alias table, the placement rules for hooks and components, and the infrastructure layer mandate. This document is the canonical authority for all structural decisions — it supersedes README excerpts and any inline comments in the code.
+  </Step>
+
+  <Step title="Check the living roadmap">
+    Open `Docs/03_Roadmap_Vivo.md` and scan the **EN CURSO** (in-progress) and **ABIERTOS** (open) sections to confirm the feature you have in mind is not already being developed or explicitly planned. Phase 5 in particular has several large modules in flight — see the [note below](#note) for a summary.
+  </Step>
+
+  <Step title="Create or extend the correct feature slice">
+    New functionality belongs in `src/features/<FeatureName>/`. Create the slice directory with only the sub-folders you actually need (`application`, `components`, `hooks`, `pages`, `domain`, `store`). Do not pre-create empty folders. Add a root-level `index.ts` that exports the feature's public API.
+
+    ```
+    src/features/MyFeature/
+    ├── application/   # use-case orchestration
+    ├── components/    # visual components reusable within this feature
+    ├── hooks/         # hooks reusable by multiple components/pages in this feature
+    ├── pages/         # route views and their screen-only hooks (colocated)
+    ├── domain/        # types, models, contracts
+    ├── store/         # feature-local Zustand store (if needed)
+    └── index.ts       # ← PUBLIC API — the only entry point other features may import
+    ```
+  </Step>
+
+  <Step title="Keep ALL SQL in the repository layer">
+    Any interaction with the SQLite WASM database must go through `src/infrastructure/localDB/repositories/`, imported via the `@repositories/*` alias. Never write `sqlocal` calls or raw SQL strings inside a component, a hook, or an application use-case. The repository layer is the mandatory abstraction boundary for all local data access.
+
+    ```typescript
+    // ❌ Never — SQL directly in a hook
+    import { sql } from "@database";
+    const rows = await sql`SELECT * FROM entities`;
+
+    // ✅ Correct — delegate to the repository
+    import { EntityRepository } from "@repositories/EntityRepository";
+    const entities = await EntityRepository.findAll();
+    ```
+  </Step>
+
+  <Step title="Run the strict architecture check and fix all violations">
+    Before pushing your branch or opening a pull request, run:
+
+    ```bash
+    cd frontend
+    npm run arch:check:strict
+    ```
+
+    This will exit with a non-zero code if any cross-feature deep imports or Shared kernel contaminations are found. Fix every violation before opening a PR — the same check runs in CI and will block the merge if violations exist. See the [Architecture Guardrails](/development/architecture-guardrails) page for a full explanation of what the script checks and how to read the report.
+  </Step>
+</Steps>
+
+## Documentation update protocol
+
+All structural documentation lives in the `Docs/` folder. When your change affects architecture, feature structure, or project priorities, update the docs as part of the same commit — not as a follow-up. The update protocol from `Docs/00_Reglas_Maestras.md` is:
+
+<Steps>
+  <Step title="Update the relevant specialized document">
+    Identify which `Docs/` file owns the topic you are changing. Architecture and placement rules → `01_Estrategia_Tecnica.md`. UI/UX patterns → `02_Diseño_UI_UX.md`. Workspace structure and navigation macro → `04_Arquitectura_Workspaces.md`. Make the update there first.
+  </Step>
+
+  <Step title="Record the change in the roadmap">
+    Add an entry to `Docs/03_Roadmap_Vivo.md` under the appropriate phase with the date and a brief description of the impact. Completed items go under **CIERRES RECIENTES**; ongoing work stays under **EN CURSO** or the relevant **ABIERTOS** phase block.
+  </Step>
+
+  <Step title="Touch 00_Reglas_Maestras.md only if routing changes">
+    `Docs/00_Reglas_Maestras.md` governs which document is consulted for each category of decision. Only edit it if you are changing that routing map itself — for example, if a new specialized document is created, or if the precedence rules between documents need updating.
+  </Step>
+</Steps>
+
+## Where to add code
+
+<AccordionGroup>
+  <Accordion title="New feature module">
+    Create `src/features/<FeatureName>/` with the sub-folders your feature actually needs. Always include `index.ts` at the feature root as the public API. Register routes in the application router and export any shared types, components, or hooks that other features are allowed to consume through `index.ts`. Do not export internal implementation details.
+  </Accordion>
+
+  <Accordion title="New backend endpoint">
+    Add a Spring MVC controller class in the appropriate domain package under `com.worldbuilding.domains.<domain>.controller`. The auxiliary backend follows a domain-scoped structure mirroring the frontend feature organization. The main application entry point is `com.worldbuilding.core.AuxServerApplication`. All endpoints are reachable by the frontend via the `/api` proxy configured in `vite.config.ts`.
+  </Accordion>
+
+  <Accordion title="Shared UI component">
+    Shared UI components live in `src/features/Shared/` and are organized into the following visual domains. Choose the most appropriate category rather than adding a flat file to the Shared root:
+
+    | Sub-folder | Purpose |
+    |---|---|
+    | `primitives/` | Foundational UI atoms: buttons, inputs, badges, tooltips |
+    | `modals/` | Modal dialogs and overlay containers |
+    | `panels/` | Side panels, drawers, and contextual information panels |
+    | `navigation/` | Navigation bars, breadcrumbs, tab bars, and sidebar layouts |
+    | `feedback/` | Loaders, spinners, toast notifications, and error states |
+    | `visuals/` | Charts, decorative elements, and data visualizations |
+    | `editor/` | Rich-text editor wrappers and Tiptap extensions |
+
+    Import Shared components in other features using the `@components` or `@components/*` alias.
+  </Accordion>
+
+  <Accordion title="Cross-feature integration">
+    When a component in the `Shared` kernel genuinely needs to interact with a specific business feature (e.g. a panel that reads from the WorldBible store), create an adapter file in `src/features/Shared/adapters/`. Adapters are the only location in `Shared` where imports from business features (`@features/<BusinessFeature>`) are permitted. Keeping all such integrations in `adapters/` makes cross-cutting dependencies explicit and auditable.
+  </Accordion>
+</AccordionGroup>
+
+## Licensing
+
+Chronos Atlas uses a **dual license model**. The full terms are in `LICENSE.txt` (Business Source License 1.1) and `LICENSE-MPL-2.0.txt` (Mozilla Public License Version 2.0). In summary:
+
+- **Community use is free** for individuals and organizations whose gross annual revenue is below 500,000 EUR and that are not publicly traded. Under these terms the code is governed by MPL 2.0.
+- **Commercial use requires a separate license** for entities at or above the revenue threshold or publicly traded entities.
+- Third-party contributors may create entirely new independent files and modules under their own custom licenses, provided they do not modify existing core files of the Licensed Work without releasing those modifications under MPL 2.0.
+- On 2040-01-01 (the Change Date) the entire Licensed Work converts to MPL 2.0 unconditionally.
+
+All contributions submitted to the project must be compatible with both licenses. If you are unsure whether your contribution qualifies, review `LICENSE.txt` before opening a pull request.
+
+<Note>
+  Chronos Atlas is under **active development**. Phase 5 has several large modules planned — Visual Planning (Whiteboards with post-its and arc connectors), advanced Genealogy with complex lineages, a second-generation Timeline engine with custom fantasy calendars, an advanced Linguistics motor with conjugation rules and phonetic evolution, editorial compilation (EPUB, PDF, DOCX), and P2P collaboration via WebRTC. Check `Docs/03_Roadmap_Vivo.md` before starting any work in these areas to avoid duplicating effort or conflicting with in-progress implementations.
+</Note>

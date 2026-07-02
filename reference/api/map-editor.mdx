@@ -1,0 +1,190 @@
+---
+title: "Map Editor API: Upload, Download, and Create Map Assets"
+sidebarTitle: "Map Editor API"
+description: "REST endpoints under /mapeditor for uploading map images, downloading them, uploading from URL, and creating blank map canvases for Chronos Atlas world maps."
+---
+
+The Map Editor backend domain handles the persistence of map asset images on the local filesystem. The browser cannot store arbitrarily large image files in OPFS with the same efficiency as disk, so map images are handed off to the Java backend which saves them to the `maps_assets/` directory and returns a `MapAsset` metadata object that the frontend uses to reference and display the image. Supported workflows include uploading an image file directly, fetching an image from a remote URL, and creating a blank white PNG canvas ready for annotation in the map editor.
+
+## Base URL
+
+```
+http://localhost:8080/api/mapeditor
+```
+
+---
+
+## `POST /mapeditor/assets/{projectName}/upload`
+
+Upload a map image file for a project. The server saves the file to `maps_assets/{projectName}_{fileName}` and returns its metadata.
+
+<ParamField path="projectName" type="string" required>
+  The name of the project this map asset belongs to.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  A human-readable name for the map (e.g. `"World Map"`, `"Northern Continent"`). Used to generate the `slug` and stored as the asset's display name.
+</ParamField>
+
+<ParamField body="file" type="multipart/form-data" required>
+  The image file to upload. Common formats: PNG, JPEG, WebP.
+</ParamField>
+
+**Response — `200 OK`** — `MapAsset` JSON object.
+
+<ResponseField name="id" type="number">
+  Auto-generated numeric identifier for the asset.
+</ResponseField>
+<ResponseField name="name" type="string">
+  The human-readable map name as provided.
+</ResponseField>
+<ResponseField name="slug" type="string">
+  URL-safe slug derived from the name.
+</ResponseField>
+<ResponseField name="fileName" type="string">
+  The filename used on disk (within `maps_assets/`).
+</ResponseField>
+<ResponseField name="filePath" type="string">
+  The full relative path on the server: `maps_assets/{projectName}_{fileName}`.
+</ResponseField>
+<ResponseField name="sizeBytes" type="number">
+  File size in bytes.
+</ResponseField>
+<ResponseField name="resolution" type="string">
+  Image dimensions as a string, e.g. `"4096x2048"`.
+</ResponseField>
+<ResponseField name="layerCount" type="number">
+  Number of layers. Always `1` for uploaded images; may differ for layered assets.
+</ResponseField>
+
+```bash
+curl -X POST \
+  -F "name=World Map" \
+  -F "file=@worldmap.png" \
+  http://localhost:8080/api/mapeditor/assets/Aethermoor/upload
+```
+
+```json
+{
+  "id": 1,
+  "name": "World Map",
+  "slug": "world-map",
+  "fileName": "worldmap.png",
+  "filePath": "maps_assets/Aethermoor_worldmap.png",
+  "sizeBytes": 2097152,
+  "resolution": "4096x2048",
+  "layerCount": 1
+}
+```
+
+---
+
+## `GET /mapeditor/assets/{projectName}/download/{fileName}`
+
+Download a previously uploaded map asset file as a binary stream.
+
+<ParamField path="projectName" type="string" required>
+  The project the asset belongs to.
+</ParamField>
+
+<ParamField path="fileName" type="string" required>
+  The `fileName` field as returned by the upload endpoints. The server resolves the full path as `maps_assets/{projectName}_{fileName}`.
+</ParamField>
+
+**Response — `200 OK`** — `application/octet-stream` — the raw image file.
+
+```bash
+curl -O \
+  http://localhost:8080/api/mapeditor/assets/Aethermoor/download/worldmap.png
+```
+
+---
+
+## `POST /mapeditor/assets/{projectName}/upload-url`
+
+Fetch a map image from a remote URL and save it to the server's `maps_assets/` directory. Useful for importing publicly-accessible map images without manually downloading them first.
+
+<ParamField path="projectName" type="string" required>
+  The project this map asset belongs to.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Human-readable name for the map asset.
+</ParamField>
+
+<ParamField body="url" type="string" required>
+  The fully-qualified URL of the image to fetch (must be reachable from the machine running the Java backend).
+</ParamField>
+
+**Response — `200 OK`** — `MapAsset` JSON object (same shape as the file upload response).
+
+```bash
+curl -X POST \
+  -F "name=Continent North" \
+  -F "url=https://example.com/maps/north-continent.png" \
+  http://localhost:8080/api/mapeditor/assets/Aethermoor/upload-url
+```
+
+```json
+{
+  "id": 2,
+  "name": "Continent North",
+  "slug": "continent-north",
+  "fileName": "north-continent.png",
+  "filePath": "maps_assets/Aethermoor_north-continent.png",
+  "sizeBytes": 1048576,
+  "resolution": "2048x1024",
+  "layerCount": 1
+}
+```
+
+---
+
+## `POST /mapeditor/assets/{projectName}/blank`
+
+Create a blank white canvas PNG and save it as a map asset. The generated image is a solid white rectangle suitable as a starting canvas for hand-drawing annotations in the map editor.
+
+<ParamField path="projectName" type="string" required>
+  The project this blank canvas belongs to.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Human-readable name for the blank canvas map.
+</ParamField>
+
+**Response — `200 OK`** — `MapAsset` JSON object.
+
+```bash
+curl -X POST \
+  -F "name=New Region" \
+  http://localhost:8080/api/mapeditor/assets/Aethermoor/blank
+```
+
+```json
+{
+  "id": 3,
+  "name": "New Region",
+  "slug": "new-region",
+  "fileName": "new-region.png",
+  "filePath": "maps_assets/Aethermoor_new-region.png",
+  "sizeBytes": 12288,
+  "resolution": "2048x2048",
+  "layerCount": 1
+}
+```
+
+---
+
+## File Naming Convention
+
+<Note>
+  All assets are stored in the `maps_assets/` directory relative to the working directory of the running JAR. The naming convention is `{projectName}_{fileName}`, which ensures assets from different projects never collide. The ZIP export endpoint (`GET /db/export/{projectName}`) automatically includes all assets matching the `{projectName}_` prefix.
+</Note>
+
+## Error Responses
+
+| Status | Condition |
+|---|---|
+| `400 Bad Request` | Empty file, missing `name` param, or empty `url` |
+| `404 Not Found` | Asset file not found on download |
+| `500 Internal Server Error` | Disk I/O failure or unreachable URL |

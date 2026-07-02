@@ -1,47 +1,118 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with Chronos Atlas in 5 Minutes"
+sidebarTitle: "Quickstart"
+description: "Install and launch Chronos Atlas locally — clone the repo, install dependencies, start the frontend and Java backend, and create your first world project."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
+This guide walks you through running Chronos Atlas on your local machine and creating your first Workspace. By the end you will have the frontend Vite dev server and the Java auxiliary backend both running, with the app open in your browser and ready to start building a world.
 
 ## Prerequisites
 
-Before you begin, you must have:
+<Info>
+  Before you begin, make sure the following are installed on your machine:
 
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
+  - **Node.js 18 or later** — required to run the Vite dev server and install frontend dependencies
+  - **Java 21** — required to compile and run the auxiliary Spring/Jetty backend
+  - **Maven** — used to build the backend; the repository ships with `mvnw.cmd` (Windows) so a global Maven install is optional
+</Info>
 
-## Get started
+## Steps
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+  <Step title="Clone the repository">
+    Clone the Chronos Atlas repository from GitHub and navigate into the project root.
 
     ```bash
-    npm install your-package
+    git clone https://github.com/Fixius50/WorlBuilding-Writting-App.git
+    cd WorlBuilding-Writting-App
     ```
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+
+  <Step title="Install frontend dependencies">
+    Navigate into the `frontend` directory and install the Node.js dependencies with npm.
 
     ```bash
-    your-cli init
+    cd frontend
+    npm install
     ```
+
+    This installs React 19, Vite 6, TanStack Query, MapLibre, Tiptap, SQLocal, Zustand, and the rest of the frontend stack declared in `frontend/package.json`.
   </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+
+  <Step title="Start the auxiliary backend">
+    The Java backend is a lightweight Spring Web MVC + Jetty server that runs locally on port **8080**. Start it from the `backend` directory using the bundled Maven wrapper.
+
+    ```bat
+    cd backend
+    mvnw.cmd compile exec:java -Dexec.mainClass=com.worldbuilding.core.AuxServerApplication
+    ```
+
+    Wait until the console confirms the server is listening on port 8080 before proceeding to the next step.
+  </Step>
+
+  <Step title="Start the frontend">
+    Open a new terminal, navigate to the `frontend` directory, and start the Vite development server.
 
     ```bash
-    your-cli start
+    cd frontend
+    npm run dev
     ```
+
+    Vite will print a local URL (typically `http://localhost:5173`). Open that URL in your browser.
+  </Step>
+
+  <Step title="Open the app and create a Workspace">
+    With the browser open, you will see the **Workspace Selector** — the home screen of Chronos Atlas. Click **New Workspace**, give your world a name, and confirm. This creates a new SQLite database entry in your browser's OPFS storage.
+
+    From there, the **Architect Panel** opens with the module sidebar on the left. Select any module — World Bible, Timelines, Maps, Linguistics, or Graph — to start building.
   </Step>
 </Steps>
 
 <Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+  On Windows, skip steps 3 and 4 entirely by running the orchestration script from the `scripts/` directory:
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
+  ```bat
+  scripts\run-app.bat
+  ```
+
+  The script automatically kills any process occupying port 8080, starts the Java backend in the background, waits until it is ready, finds a free port for the frontend (starting at 5173), and launches `npm run dev` — all in a single terminal window.
 </Tip>
+
+## Building for Production
+
+When you are ready to produce optimized output for distribution, build each layer separately.
+
+<CodeGroup>
+
+```bash Frontend
+cd frontend
+npm run build
+```
+
+```bat Backend (Windows)
+cd backend
+mvnw.cmd -DskipTests package
+```
+
+</CodeGroup>
+
+The frontend build emits static assets to `frontend/dist/`. The Maven Shade plugin packages an executable JAR at `backend/target/aux-server-1.0.0.jar` with all dependencies bundled.
+
+## Architecture Guardrails Check
+
+The frontend ships with an automated script that validates Feature-Sliced Architecture rules — detecting illegal deep cross-feature imports and business logic leaking into the Shared kernel.
+
+```bash
+cd frontend
+npm run arch:check
+```
+
+The report is written to `frontend/reports/architecture-guard-report.json`. To make the check fail on violations (useful in CI), use the strict variant:
+
+```bash
+npm run arch:check:strict
+```
+
+<Note>
+  The auxiliary backend is optional for most workflows. If it is not running, writing prose, editing the relationship graph, and managing World Bible entries all continue to work normally. Only backend-dependent features — such as filesystem backups and heavy exports — will be unavailable.
+</Note>

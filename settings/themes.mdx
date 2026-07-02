@@ -1,0 +1,160 @@
+---
+title: "Themes and Color System in Chronos Atlas"
+sidebarTitle: "Themes"
+description: "Chronos Atlas ships with dynamic CSS variable-based themes — switch between light and dark modes or customize accent colors using the design token system."
+---
+
+Chronos Atlas uses a fully dynamic, CSS-variable-driven color system. Every color in the application — backgrounds, text, borders, accents, and canvas surfaces — is expressed as a semantic token. Switching between themes or toggling light/dark mode requires only a CSS class change on the root element; no component code needs to change.
+
+## Light and Dark Mode
+
+Theme variants are applied by setting a CSS class on the root element. Dark themes use the `.dark` or `.theme-dark` class; each named theme has its own dark and light variant classes:
+
+| Class | Mode |
+|---|---|
+| `.dark` / `.theme-dark` | Generic dark mode |
+| `.theme-deep_space` | Deep Space — dark |
+| `.theme-deep_space_light` | Deep Space — light |
+| `.theme-nebula` | Nebula — dark |
+| `.theme-nebula_light` | Nebula — light |
+| `.theme-writer` | Writer — dark |
+| `.theme-writer_light` | Writer — light |
+
+Themes are toggled from the **Appearance & Editor** tab in Settings. The chosen theme ID (e.g., `"nebula_light"`) is persisted to SQLite and applied on application load.
+
+The four foundational tokens that every theme variant must define are:
+
+```css
+/* Example: .dark / .theme-dark */
+.dark, .theme-dark {
+  --background: 240 10% 4%;         /* near-black canvas base */
+  --foreground: 0 0% 98%;           /* near-white text */
+  --primary: 243 75% 59%;           /* indigo accent */
+  --primary-foreground: 210 40% 98%;/* text on primary-colored surfaces */
+  --radius: 0px;                    /* border-radius (sharp / monolithic) */
+}
+```
+
+All values are expressed as raw **HSL channels** (no `hsl()` wrapper), which allows Tailwind's opacity modifier syntax — `hsl(var(--background) / 0.5)` — to work without any workaround.
+
+## Color Tokens
+
+Beyond the foundational four, each theme defines a full palette of **semantic color tokens**. These tokens back the `text-*`, `bg-*`, and `border-*` classes used throughout the component layer.
+
+```css
+/* Semantic color tokens — light theme (:root) values */
+:root {
+  --color-indigo:   243 75% 59%;   /* foreground: 0 0% 100% */
+  --color-emerald:  160 84% 39%;   /* foreground: 0 0% 100% */
+  --color-red:      0 72% 51%;     /* foreground: 0 0% 100% */
+  --color-amber:    38 92% 50%;    /* foreground: 240 10% 4% (dark text) */
+  --color-purple:   270 70% 60%;   /* foreground: 0 0% 100% */
+  --color-orange:   25 95% 53%;    /* foreground: 0 0% 100% */
+  --color-blue:     217 91% 60%;   /* foreground: 0 0% 100% */
+  --color-cyan:     187 89% 48%;   /* foreground: 240 10% 4% (dark text) */
+
+  --color-destructive:            0 72% 51%;
+  --color-destructive-foreground: 0 0% 100%;
+}
+```
+
+These tokens are used to color-code entity types in the Graph, power the `StatCard` component accent colors in Analytics, and drive badge/tag colors across the World Bible. The `Writer` theme overrides all color tokens to desaturated grays for a pure monochrome aesthetic:
+
+```css
+/* Writer theme — monochrome overrides */
+.theme-writer {
+  --background:     0 0% 3%;
+  --foreground:     0 0% 88%;
+  --primary:        0 0% 95%;
+  --primary-foreground: 0 0% 5%;
+
+  --color-indigo:   0 0% 60%;
+  --color-emerald:  0 0% 70%;
+  --color-red:      0 0% 50%;
+  --color-amber:    0 0% 75%;
+  --color-purple:   0 0% 65%;
+  --color-orange:   0 0% 55%;
+  --color-blue:     0 0% 80%;
+  --color-cyan:     0 0% 85%;
+}
+```
+
+## Layer Opacity System
+
+Rather than hard-coding semi-transparent or muted colors, Chronos Atlas uses the **`foreground/X` opacity pattern** everywhere. This means the same markup works across all themes because it reads the current `--foreground` value (which is already inverted for light vs dark) and applies an opacity fraction.
+
+| Tailwind class | Usage |
+|---|---|
+| `bg-foreground/5` | Hover backgrounds, subtle fills |
+| `bg-foreground/10` | Secondary backgrounds |
+| `border-foreground/10` | Default hairline borders |
+| `border-foreground/20` | Sunken panel borders |
+| `border-foreground/40` | Primary panel borders (`--panel-border`) |
+| `text-foreground/40` | Muted meta-text, labels |
+| `text-foreground/60` | Secondary text |
+
+These are supported by pre-computed derived tokens in the universal `*` rule:
+
+```css
+* {
+  --panel-border:    hsl(var(--foreground) / 0.4);
+  --divider-border:  hsl(var(--foreground) / 0.1);
+  --sunken-border:   hsl(var(--foreground) / 0.2);
+  --sunken-shadow:   hsl(var(--foreground) / 0.1);
+
+  --editor-base-bg:      hsl(var(--background));
+  --editor-elevated-bg:  hsl(var(--background) / 0.92);
+  --editor-placeholder:  hsl(var(--foreground) / 0.45);
+}
+```
+
+<Note>
+  Avoid hard-coding hex colors (`#rrggbb` or `bg-[#xxx]`) in components. Always use CSS variable tokens for proper theme switching. Hard-coded hex values will not invert between light and dark modes and will appear broken on themes other than the one they were tested against.
+</Note>
+
+## Canvas Tokens
+
+The Map and Graph canvas components (built on Konva / custom SVG) cannot use Tailwind classes directly on canvas elements. Instead, they read raw HSL channel values from a set of dedicated **canvas tokens**, which are also defined in the `*` rule:
+
+```css
+* {
+  /* Canvas / Konva surface tokens */
+  --canvas-bg:            var(--background);
+  --canvas-grid:          var(--foreground);
+  --canvas-node-fill:     var(--background);
+  --canvas-node-stroke:   var(--primary);
+  --canvas-edge:          var(--primary);
+  --canvas-label:         var(--foreground);
+  --canvas-drawing-stroke: var(--foreground);
+
+  /* Canvas popup tokens */
+  --canvas-popup-bg:      var(--background);
+  --canvas-popup-fg:      var(--foreground);
+  --canvas-popup-border:  var(--foreground);
+  --canvas-popup-shadow:  var(--foreground);
+}
+```
+
+JavaScript canvas code reads these via `getComputedStyle(element).getPropertyValue('--canvas-node-stroke')` and passes the resolved HSL string directly to Konva fill/stroke properties. This ensures the graph and map canvases theme-switch correctly alongside the rest of the UI.
+
+## World Bible Card Tokens
+
+A second group of specialty tokens powers the card grid in the World Bible:
+
+```css
+* {
+  --bible-card-shell-bg:           hsl(var(--background));
+  --bible-card-bookmark-bg:        hsl(var(--background));
+  --bible-card-folder-color:       hsl(var(--color-indigo) / 0.8);
+  --bible-card-folder-color-hover: hsl(var(--color-indigo) / 1);
+  --bible-card-entity-color:       hsl(var(--foreground) / 0.55);
+  --bible-card-entity-color-hover: hsl(var(--foreground) / 0.9);
+  --bible-card-meta-color:         hsl(var(--foreground) / 0.45);
+  --bible-card-meta-color-hover:   hsl(var(--foreground) / 0.72);
+  --bible-card-action-hover-bg:    hsl(var(--foreground));
+  --bible-card-action-hover-fg:    hsl(var(--background));
+  --bible-card-image-blend:        normal; /* "screen" in dark themes */
+}
+```
+
+Dark themes override `--bible-card-image-blend` to `screen` so that entity portrait images composite correctly against the dark background without appearing washed out.

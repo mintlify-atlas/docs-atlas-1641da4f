@@ -1,0 +1,127 @@
+{
+  "projectType": "saas",
+  "projectName": "Chronos Atlas",
+  "projectDescription": "A local-first worldbuilding desktop app for writers and DM-style planners, combining entity management, interactive maps, timelines, linguistics, and rich-text writing into a single offline-first workspace.",
+  "theme": "almond",
+  "primaryColor": "#4F46E5",
+  "lightColor": "#6366F1",
+  "darkColor": "#312E81",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Guide",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "architecture-overview"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/workspaces-and-projects",
+              "concepts/entities-and-archetypes",
+              "concepts/local-first-storage"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/world-bible",
+              "features/timeline",
+              "features/maps",
+              "features/linguistics",
+              "features/writing",
+              "features/graph",
+              "features/genealogy",
+              "features/analytics"
+            ]
+          },
+          {
+            "group": "Configuration & Settings",
+            "pages": [
+              "settings/app-settings",
+              "settings/themes",
+              "settings/archetype-manager"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Technical Reference",
+        "groups": [
+          {
+            "group": "Architecture",
+            "pages": [
+              "reference/frontend-architecture",
+              "reference/backend-auxiliary",
+              "reference/data-model"
+            ]
+          },
+          {
+            "group": "Backend API",
+            "pages": [
+              "reference/api/database",
+              "reference/api/sync",
+              "reference/api/map-editor",
+              "reference/api/world-bible-export",
+              "reference/api/linguistics-font"
+            ]
+          },
+          {
+            "group": "Development",
+            "pages": [
+              "development/setup",
+              "development/architecture-guardrails",
+              "development/contributing"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Local-first SQLite WASM storage via OPFS — zero cloud dependency",
+    "World Bible: hierarchical entity library with folder management and rich-text editor (Tiptap)",
+    "Dynamic entity archetypes with custom attribute templates (EAV model)",
+    "Interactive map editor with custom image upload, MapLibre/Deck.gl layers, and drawing tools",
+    "Timeline & Chronos: multi-track event editor with calendar support",
+    "Glyph Foundry: conlang/linguistics engine with custom glyph drawing and .ttf font compilation",
+    "Relationship graph visualization with node inspection",
+    "Genealogy tree builder for characters",
+    "Rich-text notebook (Writing Hub) with mention auto-linking and slash commands",
+    "Export to DOCX/ZIP with world bible compilation via Java auxiliary backend",
+    "Zen/distraction-free writing mode",
+    "Command palette for fast navigation",
+    "Analytics dashboard for world statistics",
+    "Dark/light theme system with dynamic CSS variables",
+    "Feature-Sliced Architecture (vertical slices) with automated architecture guardrails"
+  ],
+  "publicApiSurface": [
+    "GET /db/list — list all project databases",
+    "GET /db/download/{projectName} — download project SQLite backup",
+    "POST /db/upload/{projectName} — upload/restore a project database",
+    "GET /db/export/{projectName} — export project as ZIP (db + map assets)",
+    "POST /db/import/{projectName} — import project from ZIP (sync)",
+    "POST /db/import/async/{projectName} — async import with job tracking",
+    "GET /db/import/status/{jobId} — poll async import job status",
+    "GET /db/import/result/{jobId} — retrieve result of async import",
+    "POST /sync/payload/{projectName} — archive a JSON sync payload",
+    "POST /mapeditor/assets/{projectName}/upload — upload map image asset",
+    "GET /mapeditor/assets/{projectName}/download/{fileName} — download map asset",
+    "POST /mapeditor/assets/{projectName}/upload-url — upload map image from URL",
+    "POST /mapeditor/assets/{projectName}/blank — create blank map canvas",
+    "POST /worldbible/export/{projectName}?format= — compile and export world bible (DOCX/PDF/HTML)",
+    "POST /linguistics/font/compile — compile custom conlang glyphs into a .ttf font",
+    "EntityUseCase.getById(id)",
+    "EntityUseCase.getAllByProject(projectId)",
+    "EntityUseCase.getAllByProjectAndType(projectId, type)",
+    "EntityUseCase.create(data)",
+    "EntityUseCase.update(id, data)",
+    "EntityUseCase.delete(id)",
+    "EntityUseCase.move(id, targetCarpetaId)"
+  ]
+}

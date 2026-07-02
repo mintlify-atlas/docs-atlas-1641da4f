@@ -1,0 +1,128 @@
+---
+title: "Frontend Architecture: Feature-Sliced React + SQLite WASM"
+sidebarTitle: "Frontend Architecture"
+description: "Chronos Atlas frontend uses Feature-Sliced Architecture with vertical slice isolation, Zustand state management, TanStack Query, and SQLite WASM via SQLocal in a Web Worker."
+---
+
+Chronos Atlas is built as a **local-first thick client**: all worldbuilding data lives in the user's browser via the Origin Private File System (OPFS), and the React frontend is the authoritative runtime for reading, writing, and rendering that data. The stack combines React 19, TypeScript 5.7, and Vite 6 with SQLite WASM (via SQLocal) executing inside a dedicated Web Worker — delivering zero-latency persistence with no cloud dependency. State orchestration uses Zustand for local feature stores and TanStack Query for caching async operations against the SQLite layer.
+
+## Tech Stack
+
+| Layer | Technology | Version |
+|---|---|---|
+| UI Framework | React | 19 |
+| Language | TypeScript (strict mode) | 5.7 |
+| Build Tool | Vite | 6 |
+| Local State | Zustand | latest |
+| Async State / Caching | TanStack Query | v5 |
+| Data Tables | TanStack Table | v8 |
+| Client-Side Routing | React Router | v6 |
+| Map Rendering | MapLibre GL + Deck.gl | latest |
+| Rich Text Editor | Tiptap | v2 |
+| Styling | Tailwind CSS | v3 |
+| Local Database | SQLocal (SQLite WASM over OPFS) | latest |
+
+## Feature-Sliced Architecture
+
+The frontend is organised around **Feature-Sliced Architecture (Vertical Slice)**. Every product capability — World Bible, Timeline, Maps, Linguistics, Graph, Writing, Shell — lives in its own self-contained feature directory under `src/features/`. Features own all their layers internally and expose a single public contract through a root `index.ts`. Cross-feature communication happens through those public APIs only; deep imports into another feature's internals are forbidden.
+
+The standard folder structure for every feature is:
+
+```text
+src/features/<FeatureName>/
+├── application/   # use cases, business orchestration
+├── components/    # visual components reusable within the feature
+├── hooks/         # reusable hooks within the feature
+├── pages/         # route views + co-located screen hooks
+├── domain/        # types, models, domain contracts
+└── store/         # local Zustand store (if needed)
+```
+
+Not every feature requires all six folders. Only create a layer when there are real files that justify it. Placement rules:
+
+- A hook used by a single screen lives next to that screen in `pages/`.
+- A hook shared across two or more components or pages moves to `hooks/`.
+- `use*` hooks must never reside inside `components/`; they always belong in `hooks/` or `pages/`.
+
+## The Shared Kernel
+
+`src/features/Shared` is the transversal UI utility layer. It provides primitive components, navigation helpers, modals, panels, feedback toasts, visual tokens, and adapter bridges — but it must never import business features directly. It is a pure utility kernel, not a container for domain logic.
+
+<Info>
+  Temporary integrations that must cross the boundary (such as feature-aware adapters) are the only permitted exception. These must be declared explicitly inside `src/features/Shared/adapters/` to keep the violation isolated and trackable.
+</Info>
+
+Shared exports are consumed using the `@components` and `@components/*` aliases. There is no additional `ui/` segment in the import path.
+
+## Path Aliases
+
+All path aliases are declared in `frontend/vite.config.ts` and are the canonical way to navigate the codebase. Never use relative `../../../` traversals across feature or infrastructure boundaries.
+
+| Alias | Resolves To | Purpose |
+|---|---|---|
+| `@features/*` | `src/features/*` | Any feature root or public export |
+| `@components/*` | `src/features/Shared/*` | Shared kernel sub-paths |
+| `@components` | `src/features/Shared/index` | Shared kernel barrel export |
+| `@context/*` | `src/features/App/context/*` | App-level React contexts |
+| `@domain/database` | `src/features/App/domain/database` | Core database type contracts |
+| `@domain/maps` | `src/features/Maps/domain/maps` | Map feature domain types |
+| `@domain/timeline` | `src/features/Timeline/domain/timeline` | Timeline domain types |
+| `@domain/writing` | `src/features/Writing/domain/writing` | Writing feature domain types |
+| `@domain/linguistics` | `src/features/Linguistics/domain/linguistics` | Linguistics domain types |
+| `@domain/canvas` | `src/features/Linguistics/domain/canvas` | Canvas/glyph domain types |
+| `@domain/hierarchy` | `src/features/WorldBible/domain/hierarchy` | World Bible hierarchy types |
+| `@domain/graph` | `src/features/Graph/domain/graph` | Graph feature domain types |
+| `@domain/ui` | `src/features/Shell/domain/ui` | Shell/UI domain types |
+| `@infrastructure` | `src/infrastructure` | Infrastructure root |
+| `@repositories` | `src/infrastructure/localDB/repositories` | Repository layer |
+| `@database` | `src/infrastructure/localDB/client` | SQLocal client instance |
+| `@network` | `src/infrastructure/network` | Network service layer |
+| `@utils` | `src/infrastructure/utils` | Shared utility functions |
+| `@assets` | `src/assets` | Static assets |
+| `@locales` | `src/locales` | i18n locale files |
+
+## Infrastructure Layer
+
+All database access is mediated through a dedicated repository layer at `src/infrastructure/localDB/repositories/`. This layer wraps every SQL operation and exposes typed, domain-aware service functions (e.g., `projectService`, `folderService`, `entityService`). Components, hooks, and use-cases import from `@repositories/*` — they never call `sql` or `sqlocal` directly.
+
+<Warning>
+  Direct SQL calls (`sql\`...\`` or `sqlocal.*`) inside feature components, hooks, or use-cases are a hard architectural violation. All data access must go through `@repositories/*`.
+</Warning>
+
+The SQLocal client in `src/infrastructure/localDB/client.ts` initialises the SQLite WASM Web Worker and exports the `sql` tagged-template function and `sqlocal` instance. The Vite build explicitly excludes `sqlocal` from dependency pre-bundling (`optimizeDeps.exclude`) and configures `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: credentialless` headers — both required for SharedArrayBuffer and the SQLite WASM runtime.
+
+```typescript
+import { SQLocal } from "sqlocal";
+
+export const sqlocal = new SQLocal("worldbuilding_app.sqlite3");
+export const { sql } = sqlocal;
+```
+
+## Architecture Guardrails
+
+The frontend ships an automated architecture linting script in `frontend/package.json`:
+
+```bash
+# Generate a report without failing CI
+npm run arch:check
+
+# Fail if any violations are found
+npm run arch:check:strict
+```
+
+Both commands write their output to:
+
+```text
+frontend/reports/architecture-guard-report.json
+```
+
+The script verifies two rule sets:
+
+<Steps>
+  <Step title="Cross-feature deep imports">
+    No feature may import from `@features/<OtherFeature>/(components|hooks|pages|application|domain|store)/*`. Only the public root `@features/<OtherFeature>` export is allowed.
+  </Step>
+  <Step title="Business logic in Shared">
+    `src/features/Shared/*` must not import business features. The only permitted exception is inside `src/features/Shared/adapters/*`, which must be declared explicitly.
+  </Step>
+</Steps>

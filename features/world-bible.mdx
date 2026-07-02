@@ -1,0 +1,81 @@
+---
+title: "World Bible: Hierarchical Entity Library for Your World"
+sidebarTitle: "World Bible"
+description: "The World Bible is Chronos Atlas's core entity database — organize characters, locations, factions, events, and more in a hierarchical folder structure with rich-text editing."
+---
+
+The World Bible is the central knowledge base of every project in Chronos Atlas. It gives you a structured, searchable library for every person, place, faction, event, and concept that exists in your world — all stored locally in SQLite WASM (via SQLocal) inside the browser's Origin Private File System (OPFS). Everything you write lives on your machine, with zero cloud dependency.
+
+## What is the World Bible?
+
+The World Bible is the primary reference document for your world — a living database you build alongside your narrative. It is organized in a two-panel layout: the left sidebar displays a collapsible folder and entity tree, while the right panel renders the full content editor for whichever entity or folder is selected. Navigating the tree instantly loads that entry's rich-text content, attribute values, and linked relationships without leaving the module.
+
+Every piece of world knowledge — a character's biography, a kingdom's political history, a magic system's rules — lives as a discrete **entity** inside the Bible, grouped into folders you define. The hierarchical structure mirrors the way complex fictional worlds actually work: broad categories containing progressively more specific entries.
+
+## Entity Types
+
+Entities in the World Bible are classified into five broad archetype categories. Each archetype carries its own icon, color coding, and set of default attribute templates, giving you a consistent visual language across all your projects.
+
+<CardGroup cols={3}>
+  <Card title="Individual" icon="user">
+    Characters, creatures, and any singular sentient being with a personal history and attributes. Maps to the **personaje** hierarchy type.
+  </Card>
+  <Card title="Collective" icon="users">
+    Factions, kingdoms, guilds, religions, and any organized group of individuals. Maps to the **organizacion** hierarchy type.
+  </Card>
+  <Card title="Territory" icon="map-pin">
+    Locations, regions, cities, landmarks, and geographic features within your world. Maps to the **lugar** hierarchy type.
+  </Card>
+  <Card title="Event" icon="calendar">
+    Historical milestones, battles, discoveries, and pivotal moments in your world's chronology. Maps to the **evento** hierarchy type.
+  </Card>
+  <Card title="Cosmic" icon="sparkles">
+    Abstract forces, deities, dimensions, magic systems, and anything that transcends a single place or time. Maps to the **dimension** and **magic** hierarchy types.
+  </Card>
+</CardGroup>
+
+## Folder Structure
+
+The World Bible organizes entities inside a nested folder hierarchy. Folders are typed, so the tree communicates the nature of its contents at a glance. Three folder types are available:
+
+| Folder Type | Purpose |
+|---|---|
+| `FOLDER` | A generic container for grouping related entities or sub-folders under any category. |
+| `DIMENSION` | Represents a parallel reality, cosmic plane, or alternate universe within your project. |
+| `ARCHIVE` | A read-mostly container for historical or deprecated material you want to keep but de-emphasize. |
+
+Folders can be nested to any depth. A root `FOLDER` named "Characters" might contain sub-folders for "Heroes", "Villains", and "Supporting Cast", each holding their own entities. The `WorldBibleUseCase.createCategory` method creates a new root-level folder, while `getFolderContent` retrieves a folder's immediate children (both sub-folders and entities) in a single call.
+
+## Rich-Text Editor
+
+Each entity's main body is edited in a **Tiptap**-based rich-text editor that is fully embedded in the right panel. The editor supports:
+
+- **Bubble toolbar** — a context-sensitive formatting bar that appears on text selection, offering bold, italic, heading levels, and inline code.
+- **Slash commands** — type `/` anywhere in the document to open the command palette. Available commands include `/heading`, `/image`, `/bulletList`, `/orderedList`, `/blockquote`, and more.
+- **Entity `@mentions`** — type `@` followed by any entity name to insert a live cross-reference link. The mention auto-links to the target entity's page inside the World Bible, so your narrative notes are a single click away from the referenced entry.
+
+<Tip>
+  Use `@mentions` liberally in your entity descriptions and narrative notes. Clicking a mention navigates directly to that entity, making the World Bible feel like a hyperlinked wiki rather than a flat document list.
+</Tip>
+
+## Mass Entity Creation
+
+When you need to populate a section of your Bible quickly — a roster of characters, a list of cities, a catalogue of artifacts — the **Create Mass Entities** modal lets you enter multiple entity names and types in bulk. Under the hood it calls `WorldBibleUseCase.createEntityWithAttributes`, which creates each entity and immediately injects any EAV (Entity–Attribute–Value) attributes defined by the selected template in the same logical transaction.
+
+## Table View
+
+The **BibleTableView** renders your entities in a spreadsheet-style grid, one row per entity. Every cell is directly editable — click a name to rename it, click a type cell to change the archetype, or drag rows to reorder them. `WorldBibleUseCase.quickUpdateEntity` handles single-field patches so that each edit is persisted to SQLite immediately without requiring a full form submission. Bulk operations such as moving multiple entities to a different folder or deleting a selection are also available from the table's action bar.
+
+## Export
+
+The Java auxiliary backend exposes a World Bible Export API for compiling your entire entity tree into a formatted document. Send a `POST` request to:
+
+```
+POST /worldbible/export/{projectName}?format={FORMAT}
+```
+
+Supported `format` values are `DOCX`, `PDF`, and `HTML`. The request body carries a `settings` object (title, author, genre, cover image URL, theme color, margins, font size) and a `contentTree` object representing the folder/entity hierarchy to include in the compiled document. The backend's `BookCompilerService` processes the tree and streams the generated file back as a binary download.
+
+<Note>
+  The Java auxiliary backend must be running to use the Export feature. If it is offline, the export button will be unavailable in the UI.
+</Note>

@@ -1,0 +1,148 @@
+---
+title: "World Bible Export API: Compile Your World to DOCX or HTML"
+sidebarTitle: "World Bible Export"
+description: "POST /worldbible/export/{projectName} compiles a Chronos Atlas world bible to a downloadable document — supporting EPUB, PDF, DOCX, and offline HTML formats."
+---
+
+The World Bible Export endpoint compiles a project's entire content tree — folders, entities, rich text, metadata — into a single polished document. The Java backend's `BookCompilerService` orchestrates the layout, applies the settings (cover image, theme colour, margins, font size), and returns the compiled file as a binary stream for the user to download. This is the publishing step that transforms a living worldbuilding workspace into a shareable compendium.
+
+<Warning>
+  The Java auxiliary backend must be running to use this endpoint. If the backend is not available, the export button in the UI will be disabled. Start the backend with `run-app.bat` or `java -jar target/aux-server-1.0.0.jar` before attempting an export.
+</Warning>
+
+## Base URL
+
+```
+http://localhost:8080/api/worldbible
+```
+
+---
+
+## `POST /worldbible/export/{projectName}?format={format}`
+
+Compile the project's world bible to the specified document format and return the file as a download.
+
+<ParamField path="projectName" type="string" required>
+  The name of the project to compile.
+</ParamField>
+
+<ParamField query="format" type="ExportFormat" required>
+  The target document format. Must be one of the following enum values:
+
+  | Value | Description |
+  |---|---|
+  | `EPUB` | Electronic publication format for e-readers |
+  | `PDF` | Portable Document Format — print-ready |
+  | `DOCX` | Microsoft Word Open XML document |
+  | `HTML` | Offline single-file HTML document |
+</ParamField>
+
+### Request Body
+
+The request body is a JSON object with two top-level keys: `settings` and `contentTree`.
+
+```json
+{
+  "settings": {
+    "title": "The Aethermoor Compendium",
+    "author": "Jane Doe",
+    "genre": "Dark Fantasy",
+    "includeCover": true,
+    "coverImageUrl": "https://example.com/covers/aethermoor.jpg",
+    "themeColor": "#4F46E5",
+    "margins": "normal",
+    "fontSize": "12pt"
+  },
+  "contentTree": {}
+}
+```
+
+### `settings` Fields
+
+<ParamField body="title" type="string">
+  The document title shown on the cover page and in document metadata.
+</ParamField>
+
+<ParamField body="author" type="string">
+  The author name shown on the cover page and in document metadata.
+</ParamField>
+
+<ParamField body="genre" type="string">
+  The genre label (e.g. `"Fantasy"`, `"Sci-Fi"`, `"Horror"`). Used for metadata and optional cover styling.
+</ParamField>
+
+<ParamField body="includeCover" type="boolean">
+  When `true`, the compiler generates a styled cover page as the first page of the document.
+</ParamField>
+
+<ParamField body="coverImageUrl" type="string">
+  URL of the cover image to embed. Used when `includeCover` is `true`. May be a remote URL or a data URI.
+</ParamField>
+
+<ParamField body="themeColor" type="string">
+  Hex colour string (e.g. `"#4F46E5"`) used as the accent colour for headings, dividers, and cover elements.
+</ParamField>
+
+<ParamField body="margins" type="string">
+  Page margin preset. Accepted values depend on the compiler implementation (e.g. `"normal"`, `"narrow"`, `"wide"`).
+</ParamField>
+
+<ParamField body="fontSize" type="string">
+  Base font size for body text (e.g. `"11pt"`, `"12pt"`, `"14pt"`).
+</ParamField>
+
+### `contentTree` Field
+
+<ParamField body="contentTree" type="object">
+  A JSON map representing the hierarchical content tree to compile. Constructed by the frontend from the project's folders and entities. The exact structure is consumed by `BookCompilerService` and may include folder nodes, entity summaries, and rich text HTML fragments.
+</ParamField>
+
+---
+
+### Response
+
+**`200 OK`** — `application/octet-stream` — the compiled document file.
+
+The `Content-Disposition` header contains the filename with the appropriate extension for the chosen format (e.g. `attachment; filename="Aethermoor.docx"`).
+
+---
+
+## Example
+
+```bash
+curl -X POST \
+  "http://localhost:8080/api/worldbible/export/Aethermoor?format=DOCX" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "settings": {
+      "title": "The Aethermoor Compendium",
+      "author": "Jane Doe",
+      "genre": "Dark Fantasy",
+      "includeCover": true,
+      "coverImageUrl": "https://example.com/covers/aethermoor.jpg",
+      "themeColor": "#4F46E5",
+      "margins": "normal",
+      "fontSize": "12pt"
+    },
+    "contentTree": {
+      "sections": [
+        {
+          "id": 1,
+          "title": "Characters",
+          "entities": []
+        }
+      ]
+    }
+  }' \
+  -o "Aethermoor_Compendium.docx"
+```
+
+---
+
+## Error Responses
+
+| Status | Condition |
+|---|---|
+| `400 Bad Request` | Malformed URL or missing `format` query parameter |
+| `404 Not Found` | Compiled output file not found after processing |
+| `500 Internal Server Error` | Compilation failure (e.g. malformed content tree, PDF rendering error) |

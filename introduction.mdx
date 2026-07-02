@@ -1,0 +1,65 @@
+---
+title: "Chronos Atlas: Worldbuilding Engine for Writers & Storytellers"
+sidebarTitle: "Introduction"
+description: "Chronos Atlas is a local-first worldbuilding app combining entity management, maps, timelines, linguistics, and writing — all stored offline on your machine."
+---
+
+Chronos Atlas is a desktop-class worldbuilding application built for writers, narrative designers, and storytellers who want total creative control without cloud dependencies. Inspired by the depth of DnD-style world planning, it combines entity management, interactive maps, chronological timelines, conlang tooling, rich-text writing, and relationship graphs — all in one local environment running entirely inside your browser on your own machine.
+
+## Design Philosophy
+
+Chronos Atlas is built around two principles that define every architectural decision:
+
+**Thick Frontend** — The React/TypeScript frontend is the sovereign owner of all your data. Using SQLite WASM (via SQLocal) stored inside the browser's Origin Private File System (OPFS), every write, read, and query happens locally with zero network latency and zero cloud exposure.
+
+**Thin Backend** — The Java auxiliary server is not a traditional web backend. It does not own your data and is not required for day-to-day use. It functions as a local helper worker — a REST API running on your machine — that handles only computationally heavy or filesystem-level tasks such as backups, PDF exports, and filesystem bridging.
+
+## What Can You Build?
+
+<CardGroup cols={2}>
+  <Card title="World Bible" icon="book-open">
+    A hierarchical library of folders and rich-text documents powered by a customized Tiptap editor. Write lore, character sheets, faction histories, and narrative notes — all organized the way your world demands.
+  </Card>
+  <Card title="Timelines" icon="clock">
+    A chronological axis for visualizing events across your world's history. Events can belong to multiple timelines simultaneously — compare the general history of your world against a single character's journey on the same canvas.
+  </Card>
+  <Card title="Interactive Maps" icon="map">
+    Render and annotate geographic maps powered by MapLibre GL and Deck.gl. Place points of interest, draw regions, and link map entities directly to your World Bible entries.
+  </Card>
+  <Card title="Linguistics / Conlangs" icon="language">
+    The Glyph Foundry module lets you build complete constructed languages — phonetic rules, syllabic word composers (CV/CVC patterns), glyph designers with SVG layer support, and exportable `.ttf` font files for use in other applications.
+  </Card>
+  <Card title="Writing Hub" icon="pen-nib">
+    A focused prose environment for drafting narrative chapters, scripts, and documents. The Tiptap-based editor supports rich formatting, character mentions, word counts, and print-ready output.
+  </Card>
+  <Card title="Relationship Graph" icon="diagram-project">
+    Visualize connections between entities — characters, factions, locations, artifacts — as an interactive node graph. Even when the Java backend is offline, the graph remains fully editable.
+  </Card>
+</CardGroup>
+
+## How Data Is Stored
+
+Chronos Atlas stores all worldbuilding data inside the **Origin Private File System (OPFS)** — a sandboxed, browser-managed storage layer built into modern browsers. SQLite WASM (via the [SQLocal](https://sqlocal.danawoodman.com/) library) runs as a Web Worker that reads and writes a `.sqlite` file directly into OPFS.
+
+This design means:
+
+- **No cloud.** Your data never leaves your machine unless you explicitly export or back it up.
+- **No server dependency.** The frontend reads and writes to SQLite with zero latency on every query.
+- **Full privacy.** Entity definitions, written prose, map annotations, and conlang data are stored in a binary SQLite file inaccessible to any other origin or application.
+
+The Java auxiliary backend can optionally write backup snapshots to your real filesystem using the bridge endpoints, but it never holds the authoritative copy of your data.
+
+## Project Status
+
+Chronos Atlas is under active development. The core module stack — World Bible, Timelines, Maps, Glyph Foundry, Entities, and Relationship Graph — is implemented and functional. The following Phase 5 expansions are planned:
+
+- **Whiteboards** — freeform Konva-based canvas boards for brainstorming
+- **Advanced genealogy** — family tree visualization and inheritance tracking
+- **Fantastic calendars** — custom calendar systems linked to timeline events
+- **Magic and religion systems** — structured rule sets for world metaphysics
+- **EPUB / editorial compilation export** — full document packaging for publication workflows
+- **P2P collaboration** — WebRTC-based co-authoring with conflict-resolution merge assistance
+
+<Note>
+  Chronos Atlas uses a **dual license model**. The project is licensed under both a proprietary license (`LICENSE.txt`) and the Mozilla Public License 2.0 (`LICENSE-MPL-2.0.txt`). Review both files in the repository root before use or distribution.
+</Note>

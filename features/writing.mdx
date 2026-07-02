@@ -1,0 +1,159 @@
+---
+title: "Writing Hub: Notebooks and Distraction-Free Authoring"
+sidebarTitle: "Writing"
+description: "Write prose in Chronos Atlas using paginated rich-text notebooks with slash commands, entity @mentions, bubble toolbar formatting, and a full-screen Zen mode."
+---
+
+The Writing Hub is the narrative heart of Chronos Atlas — the dedicated area where you craft the actual prose of your world. Whether you are writing a novel, a lore document, or a character backstory, the Writing Hub organizes your work into structured Notebooks, each powered by a full-featured rich-text editor that keeps your content stored locally in the browser's OPFS-backed SQLite database.
+
+## Notebooks
+
+The Writing Hub organizes all prose work into **Notebooks** (internally called *Cuadernos*). Each Notebook acts as a container for multiple **Pages** (*Hojas*), letting you break long-form writing into manageable sections — chapters, scenes, or lore entries.
+
+<CardGroup cols={3}>
+  <Card title="Create" icon="notebook">
+    Create a new Notebook by clicking the **+** button in the Writing Hub sidebar. Supply a title and an optional genre tag.
+  </Card>
+  <Card title="Rename" icon="pencil">
+    Double-click a Notebook's title in the sidebar list to rename it inline. Changes are persisted immediately to SQLite.
+  </Card>
+  <Card title="Delete" icon="trash">
+    Hover a Notebook entry and click the delete icon. This removes the notebook and all its pages via `WritingUseCase.deleteNotebook()`.
+  </Card>
+</CardGroup>
+
+Pages within a Notebook are ordered and can be created, reordered, or removed independently. Use `WritingUseCase.createPage(notebookId)` to append a blank page, and `WritingUseCase.deletePage(pageId)` to remove one.
+
+Each Notebook also supports metadata — a `status` flag (`idea`, `draft`, `review`, `done`), a `priority` level (`low`, `medium`, `high`), an `audience` note, and a free-text `summary` — all stored as JSON in the `metadata_json` column of the `Cuaderno` record.
+
+## Rich-text Editor
+
+The Writing Hub's editor is built on **[Tiptap](https://tiptap.dev/)** and ships with a carefully chosen set of extensions to keep writing fluid without sacrificing formatting power.
+
+### Bubble Toolbar
+
+When you select any text, a floating **bubble toolbar** appears with the following actions:
+
+| Action | Description |
+|---|---|
+| Bold | `**bold**` weight via `StarterKit` |
+| Italic | Italic emphasis |
+| Underline | Via `@tiptap/extension-underline` |
+| Link | Insert or edit a hyperlink (`@tiptap/extension-link`) |
+| Text Color | Inline color picker via `@tiptap/extension-color` |
+| Highlight | Multi-color text highlighting via `@tiptap/extension-highlight` |
+| Text Align | Left / center / right / justify via `@tiptap/extension-text-align` |
+| Comment | Pin an inline comment via `WritingUseCase.createComment()` |
+
+### Slash Commands
+
+Type `/` anywhere in the editor body to open the floating slash-command menu. Available commands include:
+
+```
+/heading1      → H1 heading
+/heading2      → H2 heading
+/heading3      → H3 heading
+/bulletList    → Unordered bullet list
+/orderedList   → Numbered list
+/blockquote    → Block quotation
+/codeBlock     → Monospace code block
+/image         → Embed an image
+```
+
+The slash menu is powered by a custom `SlashCommands` Tiptap extension using ProseMirror's `Suggestion` plugin (`slashSuggestion.ts`).
+
+### @Mention Autocomplete
+
+Type `@` followed by any character to trigger the entity mention autocomplete. This queries `WritingUseCase.getMentions(projectId, query)` against all pages in the project and returns matching entity names. Selecting a result inserts a `mention` node styled as a highlighted, clickable inline reference:
+
+```tsx
+Mention.configure({
+  HTMLAttributes: {
+    class: 'mention text-primary font-medium inline cursor-pointer hover:underline transition-colors'
+  },
+  suggestion,
+})
+```
+
+Clicking a mention node fires `onMentionClick(id)`, which can navigate to the linked entity in the World Bible.
+
+<Tip>
+  Use `@mentions` to link characters or locations directly in your prose — they become clickable references that connect your narrative to your World Bible entities without leaving the editor.
+</Tip>
+
+### Additional Formatting Extensions
+
+The full extension stack also includes:
+
+- **`FontSize`** — custom extension for inline font-size control
+- **`LineHeight`** — custom extension for paragraph line-height
+- **`ParagraphSpacing`** — custom extension for `margin-top` / `margin-bottom` per paragraph
+- **`CustomImage`** — block-level image node with width support and `data-original-src` tracking
+- **`CharacterCount`** — live word and character count displayed in the editor top bar
+- **`SelectionHighlight`** — dims non-selected paragraphs when Focus Mode is active
+- **`CommentAnchors`** — highlights text ranges that have attached comments
+- **`AutoLinker`** — detects entity names as you type and offers a one-click prompt to convert them into mention nodes
+
+## Zen Mode
+
+Zen Mode is a full-screen, distraction-free writing environment that removes all chrome except the content itself. It is powered by the **`ZenEditor`** component (`src/features/Editor/components/ZenEditor.tsx`).
+
+<Steps>
+  <Step title="Enter Zen Mode">
+    Click the **Focus Mode** toggle in the editor top bar (`EditorTopBar`). The sidebar collapses and the editor expands to fill the entire viewport.
+  </Step>
+  <Step title="Write">
+    The manuscript area renders as a printed-page sheet (`editor-sheet`) with `2.5 cm` page margins. The editable page title sits at the top of each sheet.
+  </Step>
+  <Step title="Page Pagination">
+    The `PagePaginationPlugin` (a ProseMirror plugin) simulates the visual break between printed pages, giving you a physical sense of document length while writing.
+  </Step>
+  <Step title="Zoom Control">
+    Use the zoom slider in the top bar (`zoom` state, default `100`) to scale the manuscript view up or down without affecting the stored content.
+  </Step>
+  <Step title="Exit Zen Mode">
+    Click the Focus Mode toggle again or press `Escape`. The sidebar and all panels are restored.
+  </Step>
+</Steps>
+
+In Zen Mode, the `SelectionHighlight` extension activates: all paragraphs except the one currently containing the cursor are dimmed, letting you focus on one thought at a time.
+
+The `ZenEditor` component also exposes a **print** action via `react-to-print`, letting you send the current page directly to your system's print dialog.
+
+## Comments
+
+The **`WritingCommentsPanel`** provides an inline annotation layer on top of your prose. Comments are stored per-page and can target a specific text selection (with character-range anchoring) or the page as a whole.
+
+| Operation | Method |
+|---|---|
+| Load page comments | `WritingUseCase.getComments(pageId)` |
+| Create a comment | `WritingUseCase.createComment({ pageId, text, selectedText, rangeStart, rangeEnd })` |
+| Resolve a comment | `WritingUseCase.resolveComment(commentId)` |
+| Reopen a resolved comment | `WritingUseCase.reopenComment(commentId)` |
+| Delete a comment | `WritingUseCase.deleteComment(commentId)` |
+
+Comments have two states: `open` and `resolved`. Resolved comments are visually distinguished in the panel but kept in the database for audit purposes. The `CommentAnchors` Tiptap extension marks the anchored text ranges directly in the editor so you can see at a glance which passages have open annotations.
+
+## Snapshots
+
+The Writing Hub maintains a **snapshot** (version history) system per page. A snapshot is a full copy of a page's HTML content at a point in time.
+
+```ts
+// Save a snapshot of the current page
+await WritingUseCase.createSnapshot(pageId, htmlContent);
+
+// Retrieve version history
+const history = await WritingUseCase.getSnapshots(pageId);
+// Returns: Array<{ id, timestamp, contenido }>
+
+// Restore via EditorTopBar UI
+onRestoreSnapshot(snapshotId);
+```
+
+Snapshots are displayed in the `EditorTopBar` history dropdown. Selecting one replaces the current editor content with the stored HTML.
+
+## Export
+
+Notebooks can be exported as part of the world's complete **World Bible** compilation. This is handled by the Java backend's world-bible endpoint, which bundles notebook pages alongside entity data, timelines, and maps into a structured export package.
+
+To export your data, go to **Settings → Sync & Backup** and use the **Export (ZIP)** button, which calls `SettingsUseCase.exportBackup()` and packages the full local SQLite database for download.

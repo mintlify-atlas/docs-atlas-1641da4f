@@ -1,0 +1,244 @@
+---
+title: "Database API: Project Backup, Restore, and Import/Export"
+sidebarTitle: "Database API"
+description: "REST endpoints under /db for listing, downloading, uploading, and ZIP-exporting Chronos Atlas project SQLite databases, including async import with job tracking."
+---
+
+The `/db` endpoints manage the full lifecycle of a project's SQLite database file on the local server filesystem. They expose operations for listing available backups, downloading a project database to the browser, uploading a new or restored database to disk, and ZIP-based export/import that bundles the SQLite file together with its associated map assets. All paths are served under `/api/db` when accessed through the Vite dev-server proxy.
+
+<Note>
+  `projectName` is sanitised and normalised server-side on every request: UTF-8 mojibake is detected and repaired, Unicode is normalised to NFC, and diacritics are folded for fuzzy lookup. You may pass an accented project name and the server will find the correct file.
+</Note>
+
+## Base URL
+
+```
+http://localhost:8080/api/db
+```
+
+---
+
+## `GET /db/list`
+
+List the names of all project databases available in the `backup/` directory.
+
+**Response** — `200 OK` — JSON array of sanitised project name strings, sorted case-insensitively.
+
+```bash
+curl http://localhost:8080/api/db/list
+```
+
+```json
+["Aethermoor", "ElCronistaDeSol", "ProjectDusk"]
+```
+
+---
+
+## `GET /db/download/{projectName}`
+
+Download the raw `.sqlite` file for a project as a binary stream.
+
+<ParamField path="projectName" type="string" required>
+  The name of the project whose database file should be downloaded. Matched against `backup/{projectName}.sqlite` with fuzzy diacritic folding.
+</ParamField>
+
+**Response** — `200 OK` — `application/octet-stream` — the `.sqlite` binary file.
+
+```bash
+curl -O http://localhost:8080/api/db/download/Aethermoor
+```
+
+---
+
+## `GET /db/download?projectName={name}`
+
+Identical to the path-parameter variant above; accepts `projectName` as a query string instead.
+
+```bash
+curl -O "http://localhost:8080/api/db/download?projectName=Aethermoor"
+```
+
+---
+
+## `POST /db/upload/{projectName}`
+
+Upload (backup or restore) a `.sqlite` file to the server's `backup/` directory. Overwrites any existing file for the same project name.
+
+<ParamField path="projectName" type="string" required>
+  The target project name. The file will be saved as `backup/{projectName}.sqlite`.
+</ParamField>
+
+<ParamField body="file" type="multipart/form-data" required>
+  The `.sqlite` binary file to upload.
+</ParamField>
+
+**Response** — `200 OK` — plain text success message.
+
+```bash
+curl -X POST \
+  -F "file=@Aethermoor.sqlite" \
+  http://localhost:8080/api/db/upload/Aethermoor
+```
+
+---
+
+## `POST /db/upload?projectName={name}`
+
+Identical to the path-parameter variant above.
+
+```bash
+curl -X POST \
+  -F "file=@Aethermoor.sqlite" \
+  "http://localhost:8080/api/db/upload?projectName=Aethermoor"
+```
+
+---
+
+## `GET /db/export/{projectName}`
+
+Export a project as a ZIP archive containing the `.sqlite` database file plus all associated map assets from `maps_assets/` whose filename starts with `{projectName}_`.
+
+<ParamField path="projectName" type="string" required>
+  The project to export.
+</ParamField>
+
+**Response** — `200 OK` — `application/octet-stream` — a `.zip` file with the following structure:
+
+```text
+{projectName}.zip
+├── {projectName}.sqlite
+└── assets/
+    ├── {projectName}_map1.png
+    └── {projectName}_map2.png
+```
+
+```bash
+curl -O http://localhost:8080/api/db/export/Aethermoor
+# saves Aethermoor.zip
+```
+
+---
+
+## `POST /db/import/{projectName}`
+
+Import a ZIP archive synchronously. Extracts the `.sqlite` file to `backup/` and all `assets/` entries to `maps_assets/`. Returns the imported `.sqlite` file immediately as a download.
+
+<ParamField path="projectName" type="string" required>
+  The target project name for the import.
+</ParamField>
+
+<ParamField body="file" type="multipart/form-data" required>
+  The `.zip` archive produced by `GET /db/export`.
+</ParamField>
+
+**Response** — `200 OK` — `application/octet-stream` — the extracted `.sqlite` file.
+
+```bash
+curl -X POST \
+  -F "file=@Aethermoor.zip" \
+  http://localhost:8080/api/db/import/Aethermoor \
+  -o Aethermoor_restored.sqlite
+```
+
+---
+
+## `POST /db/import/async/{projectName}`
+
+Start an asynchronous import job. The ZIP is processed in a background thread pool (`db-import-` threads, core size 2, max 6). Returns immediately with a job ID.
+
+<ParamField path="projectName" type="string" required>
+  The target project name.
+</ParamField>
+
+<ParamField body="file" type="multipart/form-data" required>
+  The `.zip` archive to import.
+</ParamField>
+
+**Response** — `202 Accepted`
+
+```json
+{
+  "jobId": "3f1a9c7e-84b2-41cc-a910-2d5f0e6b3c12",
+  "status": "queued",
+  "message": "Importación iniciada en segundo plano."
+}
+```
+
+```bash
+curl -X POST \
+  -F "file=@Aethermoor.zip" \
+  http://localhost:8080/api/db/import/async/Aethermoor
+```
+
+---
+
+## `GET /db/import/status/{jobId}`
+
+Poll the progress of an async import job.
+
+<ParamField path="jobId" type="string" required>
+  The UUID returned by `POST /db/import/async/{projectName}`.
+</ParamField>
+
+**Response** — `200 OK`
+
+<ResponseField name="jobId" type="string">
+  The unique job identifier.
+</ResponseField>
+<ResponseField name="projectName" type="string">
+  The sanitised project name for this import.
+</ResponseField>
+<ResponseField name="status" type="string">
+  One of `queued`, `running`, `completed`, or `failed`.
+</ResponseField>
+<ResponseField name="progress" type="number">
+  Integer from `0` to `100` representing completion percentage.
+</ResponseField>
+<ResponseField name="message" type="string">
+  Human-readable status description.
+</ResponseField>
+<ResponseField name="error" type="string | null">
+  Error detail string if `status` is `failed`; otherwise `null`.
+</ResponseField>
+
+```bash
+curl http://localhost:8080/api/db/import/status/3f1a9c7e-84b2-41cc-a910-2d5f0e6b3c12
+```
+
+```json
+{
+  "jobId": "3f1a9c7e-84b2-41cc-a910-2d5f0e6b3c12",
+  "projectName": "Aethermoor",
+  "status": "running",
+  "progress": 65,
+  "message": "Importando archivos del respaldo...",
+  "error": null
+}
+```
+
+---
+
+## `GET /db/import/result/{jobId}`
+
+Download the imported `.sqlite` file once a job has reached `completed` status. Returns `202 Accepted` if the job is still running, and `404 Not Found` if the job ID is unknown.
+
+<ParamField path="jobId" type="string" required>
+  The UUID of a completed import job.
+</ParamField>
+
+**Response** — `200 OK` — `application/octet-stream` — the imported `.sqlite` file.
+
+```bash
+curl http://localhost:8080/api/db/import/result/3f1a9c7e-84b2-41cc-a910-2d5f0e6b3c12 \
+  -o Aethermoor_imported.sqlite
+```
+
+---
+
+## Error Responses
+
+| Status | Condition |
+|---|---|
+| `400 Bad Request` | Empty file or malformed URL |
+| `404 Not Found` | Project database not found on disk |
+| `500 Internal Server Error` | Disk I/O failure |

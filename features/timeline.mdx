@@ -1,0 +1,60 @@
+---
+title: "Timelines: Chronological Event Tracking for Your World"
+sidebarTitle: "Timeline"
+description: "Build multi-track timelines in Chronos Atlas — create named tracks, add events with simulated dates, and inspect events linked to specific entities."
+---
+
+The Timeline module is Chronos Atlas's tool for mapping the chronological skeleton of your world. Whether you're tracking a thousand-year empire's rise and fall or a single character's journey through a single year, Timelines let you place events on a named axis, arrange them in order, and link them back to the entities they involve. All timeline data is stored locally in SQLite WASM (SQLocal) inside the browser's OPFS — no server required for authoring.
+
+## Timelines and Tracks
+
+The Timeline module uses a three-level hierarchy built on top of the shared `Carpeta` (folder) infrastructure:
+
+1. **Universe** — A top-level container (a `Carpeta` of type `TIMELINE` with no parent) representing a broad historical scope, such as "General History of Aeldoria."
+2. **Timeline (Track)** — A child `Carpeta` nested inside a Universe, representing a specific narrative thread within that scope, such as "Character Arc – Aria" or "The Age of Wars."
+3. **Event** — An individual occurrence that belongs to a Timeline track.
+
+Events are represented by the `Evento` interface in the database layer:
+
+```typescript
+export interface Evento {
+  orden: number;
+  id: number;
+  titulo: string;
+  descripcion: string | null;
+  fecha_simulada: string | null;
+  project_id: number;
+  timeline_id: number;
+  linea_id?: number | null;
+  created_at: string;
+  borrado: number;
+}
+```
+
+The `fecha_simulada` field accepts any string, making it compatible with both real-world date formats and fully invented calendar systems (e.g., `"Year 412, Third Age"`). The `orden` field controls the visual position of the event within its track, enabling manual drag-to-reorder sequencing independent of the simulated date string.
+
+<Note>
+  Multiple timelines can coexist within the same Universe, representing parallel histories. For example, a "World History" track and a "Character – Aria" track can both live under the "General History" Universe, letting you compare macro and micro perspectives side by side.
+</Note>
+
+## The Timeline Editor
+
+The Timeline Editor renders each track as a horizontal lane with event cards arranged left-to-right by their `orden` value. Key interactions include:
+
+- **Drag-to-reorder** — Grab any event card and drop it to a new position within the lane. The `orden` fields of affected events are updated in SQLite immediately.
+- **Event cards** — Each card displays the event's title and, if set, its `fecha_simulada`. A subtle color indicator distinguishes events that have linked entities from those that do not.
+- **Event Inspector panel** — Clicking an event card opens an inline inspector that shows the full title, description, simulated date, and the list of entities linked to that event. All fields are editable in place, with changes persisted via `TimelineUseCase.updateEvent`.
+
+## Custom Calendars
+
+Each Timeline can be associated with a custom `Calendario` defined in your project. A `Calendario` stores JSON-encoded month definitions (`meses_json`), weekday names (`dias_semana_json`), and an epoch start date (`fecha_inicio_json`). When a calendar is assigned to a timeline, the date picker in the event editor uses that calendar's months and weekday cycle instead of the Gregorian calendar, letting you record events in the native date system of your fictional world.
+
+## Importing Events
+
+The **TimelineImportModal** provides a bulk import flow for adding many events to a track at once. You can paste or upload a structured list of event titles, descriptions, and simulated dates, and the modal will call `TimelineUseCase.createEvent` for each entry in sequence, placing all imported events at the end of the track's current `orden` sequence.
+
+## Entity Linking
+
+Events can be linked to one or more World Bible entities, creating a bidirectional relationship between your chronology and your entity library. `TimelineUseCase.linkEntity` associates an `Entidad` with an `Evento` by writing a join record, and `TimelineUseCase.unlinkEntity` removes that association.
+
+This linkage powers the **MiniTimeline** component that appears in the Entity Inspector inside the World Bible. When you open any entity, the MiniTimeline sidebar panel queries `TimelineUseCase.getEventsByEntity` and renders a compact chronological view of every event that references that entity — giving you instant narrative context without leaving the entity's page.

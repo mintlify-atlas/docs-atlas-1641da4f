@@ -1,0 +1,108 @@
+---
+title: "How Chronos Atlas Stores Data: Local-First with SQLite WASM"
+sidebarTitle: "Local Storage"
+description: "Chronos Atlas uses SQLite WASM (SQLocal) running inside a Web Worker, persisting data to the browser's Origin Private File System — with no cloud sync required."
+---
+
+Chronos Atlas is built on a **local-first** philosophy: your worldbuilding data, entities, timelines, notebooks, and settings all live entirely on your own machine, inside the browser, with zero dependency on any external server or cloud account. This design guarantees zero-latency reads and writes, full offline operation, and absolute privacy — no third party ever sees your creative work. The Java auxiliary backend exists only as an optional tool for tasks that require deep filesystem access (exports, map assets, backups), and if it is not running, the core writing and editing experience continues uninterrupted.
+
+## SQLite WASM via SQLocal
+
+Chronos Atlas uses [SQLocal](https://sqlocal.dev) (version **0.17.0**) to run a full SQLite database engine compiled to **WebAssembly** entirely inside the browser. SQLocal routes all queries through a **Web Worker**, keeping the main thread free and ensuring that even complex queries — joining entities with their archetype values, loading a large timeline — never block the UI.
+
+The database client is initialized in `src/infrastructure/localDB/client.ts`:
+
+```typescript
+import { SQLocal } from "sqlocal";
+
+export const sqlocal = new SQLocal("worldbuilding_app.sqlite3");
+export const { sql } = sqlocal;
+```
+
+The exported `sql` template-literal tag is the single point of contact for all SQL queries in the infrastructure layer. It is type-safe, injection-safe (values are always parameterized), and automatically serializes/deserializes results to TypeScript interfaces.
+
+<Note>
+  Chronos Atlas uses SQLocal **0.17.0**. If you are reading the SQLocal changelog for compatible API surface, make sure you reference that version specifically — the library's API has evolved across releases.
+</Note>
+
+## Origin Private File System (OPFS)
+
+SQLocal persists the SQLite binary to the browser's **Origin Private File System (OPFS)** — a sandboxed virtual filesystem that the browser maintains per origin (`localhost` in development, your app's domain in production). OPFS data:
+
+- **Survives browser restarts and OS reboots** — it is not session storage.
+- **Has no user-visible file path** — it is not accessible through the OS file explorer; it lives inside the browser's internal storage.
+- **Is scoped to the origin** — no other website or app can read your OPFS data.
+- **Persists across app updates** — as long as the browser origin stays the same, data is safe through Vite rebuilds or new deployments.
+
+Each project is one `.sqlite` file inside OPFS. The root database file is named `worldbuilding_app.sqlite3` and contains all projects in a single shared schema — projects are logically isolated by their `project_id` foreign key, not by separate files.
+
+<Warning>
+  **Clearing browser data will permanently delete all your projects.** Actions such as "Clear site data", "Clear cookies and storage", or resetting the browser profile remove OPFS contents with no recovery path. Always export a backup before clearing browser storage. See [Backup and Restore](#backup-and-restore) below.
+</Warning>
+
+## The Infrastructure Layer
+
+All database access in Chronos Atlas is encapsulated behind repository services in `src/infrastructure/localDB/repositories/`. UI components and use-case classes never write SQL directly — they call a named service method, which constructs and executes the typed `sql` query internally.
+
+```
+src/infrastructure/localDB/repositories/
+├── calendarService.ts       — Fantasy calendar and time-system records
+├── entityService.ts         — Entities (characters, places, factions…) and their EAV values
+├── folderService.ts         — Folder tree (Carpeta), hierarchy, and path resolution
+├── notebookService.ts       — Writing notebooks (Cuaderno) and pages (Hoja)
+├── pizarraService.ts        — Whiteboard (Pizarra) nodes, edges, and viewport state
+├── projectService.ts        — Project (Proyecto) CRUD and metadata
+├── relationshipService.ts   — Entity relationships for the graph view (Relacion)
+├── settingsService.ts       — Global key-value configuration store
+├── templateService.ts       — Archetype/template (Plantilla) definitions
+├── timelineService.ts       — Timeline events (Evento) and dimension lines
+└── trashService.ts          — Soft-deleted items available for restore or purge
+```
+
+This strict boundary means:
+- The SQL schema can be refactored without touching any feature component.
+- Query logic is testable in isolation.
+- The Web Worker communication managed by SQLocal is centralized in one place.
+
+## Backup and Restore
+
+Because your data lives only in OPFS, Chronos Atlas provides a built-in backup flow powered by the **Java auxiliary backend**. The backend exposes REST endpoints under `/api/db/` that accept or serve the raw `.sqlite` database file (and, for full-universe exports, a `.zip` bundle that includes map assets).
+
+The `SettingsUseCase` class orchestrates this in the application layer:
+
+```typescript
+// Export current OPFS database to the backend's backup directory
+static async exportBackup(
+  identifier: string = "worldbuilding_backup",
+): Promise<{ success: boolean; message: string }>
+
+// Import a .sqlite or .zip backup file and overwrite the local OPFS database
+static async importDatabase(
+  file: File,
+): Promise<{ success: boolean; message: string }>
+```
+
+For ZIP imports — which bundle both the database and map assets — the backend processes the archive asynchronously. `SettingsUseCase` polls `/api/db/import/status/:jobId` until the job completes, then calls `sqlocal.overwriteDatabaseFile()` with the resulting blob to atomically replace the local database.
+
+For the full API reference for these endpoints, see [Database API Reference](/reference/api/database).
+
+<Steps>
+  <Step title="Export a backup">
+    Go to **Settings → Backup**. Click **Export** to push the current database to the Java backend's `maps_assets/` directory as a named snapshot. A `.sqlite` file or `.zip` bundle (with map assets) will be saved to disk.
+  </Step>
+  <Step title="Download the backup file">
+    Use the backup listing in Settings to download the `.sqlite` or `.zip` file to a location of your choice outside the browser (e.g. a cloud drive, USB key, or version-controlled folder).
+  </Step>
+  <Step title="Restore from backup">
+    In **Settings → Backup**, click **Import** and select your saved `.sqlite` or `.zip` file. Chronos Atlas will overwrite the current OPFS database. **Reload the page** after the import completes to re-initialize the application with the restored data.
+  </Step>
+</Steps>
+
+## What Data Is NOT Stored in OPFS
+
+While nearly all worldbuilding content lives in OPFS, **map image assets** are the exception. When you upload a map image through the Maps module, the file is saved to the `maps_assets/` directory on disk by the Java auxiliary backend — not inside the browser's OPFS. The SQLite database stores only the reference path or URL to the asset.
+
+This means:
+- Map images are accessible through the OS file system (inside the backend's working directory).
+- A raw OPFS export (`.sqlite` only) will **not** include map images. Use the full `.zip` export from Settings to capture both the database and all map assets together.
+- If the Java backend is not running, map images may not load, but all text-based worldbuilding content (entities, timelines, notebooks, archetypes) remains fully available.

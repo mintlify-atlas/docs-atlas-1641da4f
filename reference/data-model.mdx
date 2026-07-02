@@ -1,0 +1,216 @@
+---
+title: "Data Model: Core TypeScript Interfaces and SQLite Schema"
+sidebarTitle: "Data Model"
+description: "The Chronos Atlas data model defines Proyectos, Carpetas, Entidades, Plantillas, Valores, Eventos, and more — all persisted in per-project SQLite files via OPFS."
+---
+
+Chronos Atlas persists all worldbuilding data in a **single SQLite file per project**, stored in the browser's Origin Private File System (OPFS) and accessed through the SQLocal Web Worker. The schema follows a hybrid design: first-class tables for structural concerns (projects, folders, events, relationships) and an **Entity-Attribute-Value (EAV) pattern** for dynamic, user-defined fields on entities. Every TypeScript interface in the domain layer maps directly to a SQLite table.
+
+<Note>
+  Each project has its own isolated SQLite database file. There is no shared global database between projects. Switching projects in the UI loads a different OPFS file into the SQLocal worker.
+</Note>
+
+## Core Interfaces
+
+### `Proyecto`
+
+The top-level container. Every piece of content in Chronos Atlas belongs to exactly one `Proyecto`.
+
+```typescript
+export interface Proyecto {
+  id: number;
+  nombre: string;
+  descripcion?: string;
+  tag?: string;
+  image_url?: string;
+  initials?: string;
+  fecha_creacion: string;
+  ultima_modificacion: string;
+}
+```
+
+### `FolderType`
+
+A union type representing the semantic role of a folder. Used by the `Carpeta` interface to determine which module owns a folder and how it is rendered in the sidebar.
+
+```typescript
+export type FolderType =
+  | "FOLDER"      // Generic World Bible folder
+  | "TIMELINE"    // Chronos timeline container
+  | "DIMENSION"   // Parallel dimension / multiverse branch
+  | "CONLANG"     // Constructed language container
+  | "MAPS"        // Map workspace container
+  | "ARCHIVE";    // Archived / soft-deleted container
+```
+
+### `Carpeta`
+
+A folder node in the hierarchical content tree. Supports unlimited nesting via `padre_id` and soft deletion via the `borrado` flag.
+
+```typescript
+export interface Carpeta {
+  id: number;
+  nombre: string;
+  project_id: number;
+  padre_id: number | null;   // null = root-level folder
+  tipo: FolderType;
+  slug: string;
+  borrado: number;           // 0 = active, 1 = soft-deleted
+  itemCount?: number;        // computed, not persisted
+}
+```
+
+### `Entidad`
+
+The universal entity record. Characters, locations, factions, items, creatures, and any other worldbuilding concept are all stored as `Entidad` rows differentiated by `tipo`. Rich content is serialised to `contenido_json`.
+
+```typescript
+export interface Entidad {
+  id: number;
+  nombre: string;
+  slug: string;
+  tipo: string;                // e.g. "CHARACTER", "LOCATION", "FACTION"
+  descripcion: string | null;
+  contenido_json: string | null;
+  project_id: number;
+  carpeta_id: number | null;
+  folder_slug: string | null;
+  imagen_url: string | null;
+  fecha_creacion: string;
+  fecha_actualizacion: string;
+  borrado: number;
+  valores?: Valor[];           // EAV values, joined at query time
+}
+```
+
+### `Word` (extends `Entidad`)
+
+A specialised entity subtype for constructed-language dictionary entries. It extends `Entidad` with linguistic-specific fields and includes SVG glyph data for the Glyph Foundry module.
+
+```typescript
+export interface Word extends Omit<Entidad, "id"> {
+  id: number;
+  lema: string;
+  palabraOriginal?: string;
+  categoriaGramatical: string;
+  definicion: string;
+  traduccionEspanol?: string;
+  genero?: string;
+  notas?: string;
+  svgPathData?: string;         // SVG path for the glyph visual
+  rawEditorData?: string;       // raw Tiptap editor JSON
+  unicodeCode?: string;         // assigned Unicode code point
+  isNew?: boolean;
+  placeholder?: boolean;
+}
+```
+
+### `Plantilla`
+
+An attribute template — the schema definition for a custom field. Plantillas are user-created and scoped to a project. They form the "schema" side of the EAV triad.
+
+```typescript
+export interface Plantilla {
+  id: number;
+  nombre: string;
+  tipo: string;                       // "text" | "short_text" | "number" | "date" | "select" | ...
+  valor_defecto: string | null;
+  metadata: string | null;            // JSON: options array for "select" type, etc.
+  es_obligatorio: boolean | number;
+  project_id: number;
+  aplica_a_todo: boolean | number;    // applies to all entity types if true
+  tipo_objetivo: string | null;       // target entity type filter
+  categoria: string | null;           // grouping label shown in the form
+  orden: number;                      // display order
+  created_at: string;
+}
+```
+
+### `Valor`
+
+An EAV value record — one row per (entity, template) pair. Stores the actual user-entered value as a string. Optionally carries the `Plantilla` definition when joined.
+
+```typescript
+export interface Valor {
+  id: number;
+  entidad_id: number;
+  plantilla_id: number;
+  valor: string | null;
+  updated_at: string;
+  plantilla?: Plantilla;   // joined at query time
+}
+```
+
+### `Evento`
+
+A timeline event. Each event belongs to a project and a timeline folder, and may be assigned to a parallel dimension line (`linea_id`) for multiverse branching.
+
+```typescript
+export interface Evento {
+  orden: number;
+  id: number;
+  titulo: string;
+  descripcion: string | null;
+  fecha_simulada: string | null;   // free-form in-world date string
+  project_id: number;
+  timeline_id: number;
+  linea_id?: number | null;        // dimension branch (multiverse)
+  created_at: string;
+  borrado: number;
+}
+```
+
+## EAV Pattern
+
+The `Entidad` + `Plantilla` + `Valor` trio implements a flexible Entity-Attribute-Value model that lets users define custom fields for any entity type without requiring schema migrations.
+
+<Steps>
+  <Step title="Define a template (Plantilla)">
+    A user creates a `Plantilla` such as "Alignment" (type: `select`, options: `["Lawful", "Neutral", "Chaotic"]`) scoped to `tipo_objetivo = "CHARACTER"`.
+  </Step>
+  <Step title="Attach values (Valor)">
+    When a character entity is saved, a `Valor` row is written linking `entidad_id` + `plantilla_id` + the chosen option string.
+  </Step>
+  <Step title="Render dynamic forms">
+    The UI reads all `Plantilla` rows for the entity's type, then fetches matching `Valor` rows, and renders a dynamic form. Adding a new template field automatically appears on all entities of that type.
+  </Step>
+</Steps>
+
+## `contenido_json`
+
+The `contenido_json` column on `Entidad` (and the `contenido` column on `Hoja`) stores arbitrary structured data as a JSON string. This field is the escape hatch for module-specific rich data that does not fit a fixed relational schema:
+
+| Module | What `contenido_json` holds |
+|---|---|
+| World Bible entities | Tiptap editor document JSON (rich text blocks, marks, nodes) |
+| Glyph Foundry glyphs | `{ svgPathData, layers, ... }` — layered SVG canvas state |
+| Map editor | Map canvas viewport and annotation state |
+| Whiteboards | `{ nodos_json, aristas_json, viewport_json }` — React Flow graph state |
+
+<Info>
+  Always type `contenido_json` as `unknown` and cast safely after parsing. Never assume its shape without a runtime type guard — the field stores heterogeneous data across different feature modules.
+</Info>
+
+## Full SQLite Schema Reference
+
+The schema is initialised and migrated by `src/infrastructure/localDB/client.ts` on application startup. Key tables and their primary relationships:
+
+```sql
+proyectos (id PK, nombre UNIQUE, descripcion, tag, image_url, initials, fecha_creacion, ultima_modificacion)
+  └── carpetas (id PK, nombre, project_id FK, padre_id FK self-ref, tipo, slug, borrado)
+        └── entidades (id PK, nombre, tipo, contenido_json, project_id FK, carpeta_id FK, slug, borrado)
+              └── valores (id PK, entidad_id FK, plantilla_id FK, valor, updated_at)
+  └── plantillas (id PK, nombre, tipo, metadata, es_obligatorio, project_id FK, aplica_a_todo, tipo_objetivo, orden)
+  └── eventos (id PK, titulo, fecha_simulada, project_id FK, timeline_id, linea_id, borrado)
+  └── relaciones (id PK, origen_id FK entidades, destino_id FK entidades, tipo, project_id FK)
+  └── cuadernos (id PK, titulo, genero, metadata_json, project_id FK)
+        └── hojas (id PK, titulo, contenido, cuaderno_id FK, orden)
+              ├── hojas_snapshots (id PK, hoja_id FK, contenido)
+              └── hojas_comentarios (id PK, hoja_id FK, parent_id FK self-ref, texto, estado)
+  └── dimension_lineas (id PK, nombre, carpeta_id FK, color, entidad_id FK)
+  └── eventos_entidades (id PK, evento_id FK, entidad_id FK)
+  └── pizarras (id PK, titulo, project_id FK, nodos_json, aristas_json, viewport_json)
+  └── calendarios (id PK, nombre, project_id FK, meses_json, dias_semana_json, borrado)
+  └── grafo_posiciones (id PK, entidad_id FK, contexto, x, y, UNIQUE(entidad_id, contexto))
+configuraciones (clave PK, valor, updated_at)
+```

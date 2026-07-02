@@ -1,0 +1,113 @@
+---
+title: "Relationship Graph: Visualize Entity Connections"
+sidebarTitle: "Graph"
+description: "The Chronos Atlas Graph module renders all entity relationships as an interactive force-directed network, with node inspection and filter controls."
+---
+
+The Graph module gives you a bird's-eye view of your entire world by rendering every entity and the relationships between them as an interactive, zoomable network. Instead of navigating entities one by one through the World Bible, the Graph lets you see the web of connections at a glance — alliances, rivalries, family ties, territorial claims, and any other relationship type you have defined.
+
+## What the Graph Shows
+
+Every **entity** in your project appears as a **node** on the canvas. Every **relationship** defined in the Relationships module appears as an **edge** connecting two nodes. The graph is driven directly from the local SQLite database, so it always reflects the current state of your world without any manual refresh step.
+
+<CardGroup cols={2}>
+  <Card title="Nodes" icon="circle-nodes">
+    Each node represents one entity (`Entidad`). Nodes are color-coded by entity type (`tipo`) so you can instantly distinguish characters from locations, organizations, objects, and events.
+  </Card>
+  <Card title="Edges" icon="arrow-right-arrow-left">
+    Each edge represents a `Relacion` record. The edge label displays the relationship type (e.g., "ally", "parent", "rules") drawn from the `tipo` field of the relationship.
+  </Card>
+</CardGroup>
+
+The canvas supports **zoom** and **pan** — scroll to zoom in and out, click-and-drag on empty space to pan. The layout is force-directed, meaning nodes repel each other and edges act as springs, settling into a natural spread that minimizes visual overlap.
+
+Each node on the canvas carries the following data from the `GraphNode` interface:
+
+```ts
+export interface GraphNode {
+  id: string;
+  originalId: number | string;
+  originalType: string;  // e.g. "PERSONAJE", "LUGAR", "ORGANIZACION"
+  name: string;
+  description: string;
+  type: string;
+  icon: string;
+  x: number;
+  y: number;
+  color: string;        // derived from entity type for visual coding
+}
+```
+
+And each edge from `GraphConnection`:
+
+```ts
+export interface GraphConnection {
+  from: string;
+  to: string;
+  label: string;
+  description?: string;
+}
+```
+
+<Note>
+  The graph is computed in real-time from the local SQLite database stored in your browser's OPFS. For large worlds with thousands of entities, use the filter controls to narrow the visible set and keep the canvas performant.
+</Note>
+
+## Entity Database Panel
+
+The left sidebar of the Graph view contains the **Entity Database panel** — a scrollable list of all entities in the project. This panel serves as a quick-access directory alongside the visual canvas.
+
+- **Search** — type in the filter field to narrow the list by entity name.
+- **Focus** — click any entity in the list to center the graph canvas on the corresponding node and highlight it.
+- **Type filter** — filter the list by entity archetype (Individual, Collective, Territory, etc.) to reduce noise when working with large worlds.
+
+The Entity Database panel pulls from `entityService.getAllByProject(projectId)` and stays in sync with the graph canvas — selecting a node on the canvas also highlights the matching entry in the panel.
+
+## Node Inspection
+
+Clicking a node on the canvas opens the **`InGraphNodeWindow`** — a compact inline inspection panel that floats over the canvas. You can read the entity's core details without navigating away from the graph:
+
+<Accordion title="InGraphNodeWindow contents">
+  - **Entity name** and **type badge**
+  - **Description** from the `Entidad.descripcion` field
+  - **Direct relationships** — a mini-list of all edges connected to this node
+  - **Link to full profile** — a button that navigates to the entity's full World Bible entry
+</Accordion>
+
+This design means you can explore and cross-reference entities fluidly without losing your place in the graph layout. The window closes when you click elsewhere on the canvas or press `Escape`.
+
+## Control Panel
+
+The graph toolbar (accessible from the top-right of the canvas) exposes layout and display controls:
+
+| Control | Function |
+|---|---|
+| Entity type filter | Toggle visibility of nodes by type (Individual, Collective, Territory, Object, Event) |
+| Edge labels | Show or hide relationship type labels on edges |
+| Layout reset | Re-run the force-directed layout algorithm to untangle overlapping nodes |
+| Zoom to fit | Fit the entire graph within the visible viewport |
+| Clear canvas | Remove all nodes and edges from the current canvas view |
+
+## Relationships
+
+All edges in the Graph are sourced from the **Relationships module**. Relationships are defined as `Relacion` records with an origin entity (`origen_id`), a destination entity (`destino_id`), and a type label (`tipo`).
+
+```ts
+export interface Relacion {
+  id: number;
+  origen_id: number;
+  destino_id: number;
+  tipo: string;
+  descripcion: string | null;
+  project_id: number;
+  created_at: string;
+  origen_handle?: string | null;
+  destino_handle?: string | null;
+}
+```
+
+The **`RelationshipManager`** component lets you create and manage relationship records from within the entity inspector. The **`RelationshipInspector`** displays all relationships for a selected entity and provides quick navigation to the connected node. Any relationship created or deleted in the Relationships module is immediately reflected in the Graph.
+
+<Tip>
+  To understand the overall shape of your world, look for clusters of densely connected nodes — these are the power centers or narrative hubs of your story. Isolated nodes with no edges are entities that may need more development.
+</Tip>

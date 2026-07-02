@@ -1,0 +1,83 @@
+---
+title: "Genealogy: Family Trees for Characters and Bloodlines"
+sidebarTitle: "Genealogy"
+description: "The Genealogy module in Chronos Atlas lets you build visual family trees, assign parent-child relationships, and navigate complex bloodlines across your world's characters."
+---
+
+The Genealogy module provides a visual canvas for mapping the family connections between characters in your world. Rather than tracking lineages through text notes or relationship lists, you can drag entities onto a shared canvas, let Chronos Atlas resolve their existing relationships into edges, and build a clear picture of bloodlines, dynasties, and kinship networks across your project.
+
+## Building a Family Tree
+
+The **`GenealogyView`** component renders a full-screen interactive canvas powered by the `UniversalCanvas` component. Family trees are built through direct drag-and-drop — no separate tree editor is needed.
+
+<Steps>
+  <Step title="Open the Genealogy module">
+    Navigate to the **Genealogy** section from the left sidebar. The canvas loads empty, ready for you to populate it.
+  </Step>
+  <Step title="Browse entities in the sidebar panel">
+    The left panel lists all entities in the current project, sourced from `entityService.getAllByProject(projectId)`. These are the draggable building blocks of your tree.
+  </Step>
+  <Step title="Drag an entity onto the canvas">
+    Drag any entity from the list and drop it onto the canvas at your chosen position. Chronos Atlas automatically resolves all direct relationships for that entity and places connected entities nearby in a spiral layout around the drop point.
+  </Step>
+  <Step title="Continue expanding">
+    Drag additional entities to bring in more branches. Edges between any two entities that share a `Relacion` record are drawn automatically whenever both endpoints are present on the canvas.
+  </Step>
+  <Step title="Reposition nodes">
+    Drag any node on the canvas to reposition it. The new coordinates are saved immediately via `onNodeDragEnd`, keeping your layout persistent within the session.
+  </Step>
+  <Step title="Clear and restart">
+    Use the **Clear Canvas** button to remove all nodes and edges and start a new layout. This does not delete any entity or relationship data — it only clears the current visual arrangement.
+  </Step>
+</Steps>
+
+When you drop an entity, the `handleDropNode` function:
+1. Adds the main entity as a canvas node at the drop `(x, y)` position.
+2. Queries `allRelationships` for every `Relacion` where `origen_id` or `destino_id` matches the entity.
+3. Collects the IDs of all neighbor entities and places them in a tight spiral (`radius = 200 + floor(index / 3) * 200`) around the drop point.
+4. Recomputes all edges between every node currently on the canvas.
+
+## Assigning Relationships
+
+The Genealogy canvas visualizes relationships that already exist in the database. To define new parent-child, sibling, or marriage connections, use the **`FamilyTreeAssigner`** component, which provides a dedicated form for linking `Individual` type entities with family-specific relationship types.
+
+<CardGroup cols={2}>
+  <Card title="Parent / Child" icon="family">
+    Assign a `parent` or `child` relationship between two Individual entities. This creates a directional `Relacion` record with `tipo = "parent"` (or your custom label).
+  </Card>
+  <Card title="Sibling / Spouse" icon="users">
+    Assign sibling or spouse relationships for horizontal lineage connections. These appear as undirected-style edges on the Genealogy canvas.
+  </Card>
+</CardGroup>
+
+All relationships created through the `FamilyTreeAssigner` are stored as standard `Relacion` records, which means they are also visible in the Relationship Graph module and in each entity's relationship list in the World Bible.
+
+```ts
+// Relacion record structure used by both Genealogy and Graph
+export interface Relacion {
+  id: number;
+  origen_id: number;    // parent/source entity
+  destino_id: number;   // child/target entity
+  tipo: string;         // e.g. "parent", "sibling", "spouse"
+  descripcion: string | null;
+  project_id: number;
+  created_at: string;
+}
+```
+
+## Tree Navigation
+
+Once entities are placed on the canvas, you can explore the family tree fluidly:
+
+- **Pan** — click and drag on empty canvas space to scroll through large trees.
+- **Zoom** — scroll up/down to zoom in on a particular branch or zoom out for a full-dynasty view.
+- **Inspect a node** — click any node to open the entity's inline inspection panel, which shows its name, type, and a summary of its relationships.
+- **Navigate to full profile** — from the node inspection panel, follow the link to the entity's complete World Bible entry where all attributes, custom fields, and notes are visible.
+
+<Note>
+  Advanced genealogy features — including complex lineages (e.g., half-siblings, adoptions), noble house systems, and multi-generational inheritance tracking — are planned for a future release (Phase 5 of the Chronos Atlas roadmap).
+</Note>
+
+<Tip>
+  Genealogy works best when characters are already created in the World Bible using the **Individual** archetype. Ensure each character has a distinct name before building the tree, as the canvas uses `Entidad.nombre` as the node label.
+</Tip>
