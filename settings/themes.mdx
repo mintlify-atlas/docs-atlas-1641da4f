@@ -1,7 +1,7 @@
 ---
 title: "Themes and Color System in Chronos Atlas"
 sidebarTitle: "Themes"
-description: "Chronos Atlas ships with dynamic CSS variable-based themes — switch between light and dark modes or customize accent colors using the design token system."
+description: "Chronos Atlas uses a CSS variable-driven token system — three named themes each with dark and light variants, no hard-coded hex values anywhere in the component layer."
 ---
 
 Chronos Atlas uses a fully dynamic, CSS-variable-driven color system. Every color in the application — backgrounds, text, borders, accents, and canvas surfaces — is expressed as a semantic token. Switching between themes or toggling light/dark mode requires only a CSS class change on the root element; no component code needs to change.
@@ -22,20 +22,95 @@ Theme variants are applied by setting a CSS class on the root element. Dark them
 
 Themes are toggled from the **Appearance & Editor** tab in Settings. The chosen theme ID (e.g., `"nebula_light"`) is persisted to SQLite and applied on application load.
 
-The four foundational tokens that every theme variant must define are:
+The base (`:root`) token set defines the **light theme default** — a soft emerald-green accent on a pure white background:
 
 ```css
-/* Example: .dark / .theme-dark */
-.dark, .theme-dark {
-  --background: 240 10% 4%;         /* near-black canvas base */
-  --foreground: 0 0% 98%;           /* near-white text */
-  --primary: 243 75% 59%;           /* indigo accent */
-  --primary-foreground: 210 40% 98%;/* text on primary-colored surfaces */
-  --radius: 0px;                    /* border-radius (sharp / monolithic) */
+/* :root — light theme defaults (Soft Emerald Green) */
+:root {
+  --background: 0 0% 100%;
+  --foreground: 240 10% 3.9%;
+  --primary: 142 70% 45%;          /* emerald green accent */
+  --primary-foreground: 0 0% 98%;
+  --radius: 0px;                   /* sharp / monolithic borders */
+}
+```
+
+The generic `.dark` / `.theme-dark` variant switches to a near-black base with an indigo accent:
+
+```css
+/* .dark, .theme-dark — generic dark mode */
+.dark,
+.theme-dark {
+  --background: 240 10% 4%;
+  --foreground: 0 0% 98%;
+  --primary: 243 75% 59%;          /* indigo accent */
+  --primary-foreground: 210 40% 98%;
 }
 ```
 
 All values are expressed as raw **HSL channels** (no `hsl()` wrapper), which allows Tailwind's opacity modifier syntax — `hsl(var(--background) / 0.5)` — to work without any workaround.
+
+## Named Theme Variants
+
+Each named theme defines its own `--background`, `--foreground`, and `--primary` values independently for the dark and light modes.
+
+### Deep Space
+
+```css
+/* Dark variant */
+.theme-deep_space {
+  --background: 240 10% 2%;
+  --foreground: 0 0% 95%;
+  --primary: 243 75% 59%;          /* indigo */
+}
+
+/* Light variant */
+.theme-deep_space_light {
+  --background: 0 0% 100%;
+  --foreground: 240 10% 10%;
+  --primary: 142 70% 45%;          /* emerald green */
+}
+```
+
+### Nebula
+
+```css
+/* Dark variant */
+.theme-nebula {
+  --background: 260 40% 5%;
+  --foreground: 0 0% 95%;
+  --primary: 270 100% 80%;         /* soft lavender */
+}
+
+/* Light variant */
+.theme-nebula_light {
+  --background: 260 20% 99%;
+  --foreground: 260 10% 15%;
+  --primary: 270 90% 60%;          /* purple */
+}
+```
+
+### Writer
+
+The Writer theme is fully monochromatic — it strips all saturation for a pure ink-on-paper aesthetic:
+
+```css
+/* Dark variant */
+.theme-writer {
+  --background: 0 0% 3%;
+  --foreground: 0 0% 88%;
+  --primary: 0 0% 95%;
+  --primary-foreground: 0 0% 5%;
+}
+
+/* Light variant */
+.theme-writer_light {
+  --background: 0 0% 98%;
+  --foreground: 0 0% 12%;
+  --primary: 0 0% 0%;
+  --primary-foreground: 0 0% 100%;
+}
+```
 
 ## Color Tokens
 
@@ -58,7 +133,7 @@ Beyond the foundational four, each theme defines a full palette of **semantic co
 }
 ```
 
-These tokens are used to color-code entity types in the Graph, power the `StatCard` component accent colors in Analytics, and drive badge/tag colors across the World Bible. The `Writer` theme overrides all color tokens to desaturated grays for a pure monochrome aesthetic:
+These tokens color-code entity types in the Graph, power the `StatCard` accent colors in Analytics, and drive badge/tag colors across the World Bible. The Writer theme overrides all color tokens to desaturated grays for a pure monochrome aesthetic:
 
 ```css
 /* Writer theme — monochrome overrides */
@@ -119,19 +194,19 @@ The Map and Graph canvas components (built on Konva / custom SVG) cannot use Tai
 ```css
 * {
   /* Canvas / Konva surface tokens */
-  --canvas-bg:            var(--background);
-  --canvas-grid:          var(--foreground);
-  --canvas-node-fill:     var(--background);
-  --canvas-node-stroke:   var(--primary);
-  --canvas-edge:          var(--primary);
-  --canvas-label:         var(--foreground);
+  --canvas-bg:             var(--background);
+  --canvas-grid:           var(--foreground);
+  --canvas-node-fill:      var(--background);
+  --canvas-node-stroke:    var(--primary);
+  --canvas-edge:           var(--primary);
+  --canvas-label:          var(--foreground);
   --canvas-drawing-stroke: var(--foreground);
 
   /* Canvas popup tokens */
-  --canvas-popup-bg:      var(--background);
-  --canvas-popup-fg:      var(--foreground);
-  --canvas-popup-border:  var(--foreground);
-  --canvas-popup-shadow:  var(--foreground);
+  --canvas-popup-bg:     var(--background);
+  --canvas-popup-fg:     var(--foreground);
+  --canvas-popup-border: var(--foreground);
+  --canvas-popup-shadow: var(--foreground);
 }
 ```
 
@@ -157,4 +232,4 @@ A second group of specialty tokens powers the card grid in the World Bible:
 }
 ```
 
-Dark themes override `--bible-card-image-blend` to `screen` so that entity portrait images composite correctly against the dark background without appearing washed out.
+Dark themes (`.dark`, `.theme-dark`, `.theme-deep_space`, `.theme-nebula`, `.theme-writer`) override `--bible-card-image-blend` to `screen` so that entity portrait images composite correctly against the dark background without appearing washed out.

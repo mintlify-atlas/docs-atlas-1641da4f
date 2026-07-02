@@ -1,14 +1,14 @@
 ---
 title: "Map Editor API: Upload, Download, and Create Map Assets"
 sidebarTitle: "Map Editor API"
-description: "REST endpoints under /mapeditor for uploading map images, downloading them, uploading from URL, and creating blank map canvases for Chronos Atlas world maps."
+description: "Endpoints under /mapeditor for uploading map images by file or URL, downloading assets, and creating blank canvases for Chronos Atlas world maps."
 ---
 
 The Map Editor backend domain handles the persistence of map asset images on the local filesystem. The browser cannot store arbitrarily large image files in OPFS with the same efficiency as disk, so map images are handed off to the Java backend which saves them to the `maps_assets/` directory and returns a `MapAsset` metadata object that the frontend uses to reference and display the image. Supported workflows include uploading an image file directly, fetching an image from a remote URL, and creating a blank white PNG canvas ready for annotation in the map editor.
 
 ## Base URL
 
-```
+```text
 http://localhost:8080/api/mapeditor
 ```
 

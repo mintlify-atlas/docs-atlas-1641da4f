@@ -1,7 +1,7 @@
 ---
 title: "Data Model: Core TypeScript Interfaces and SQLite Schema"
 sidebarTitle: "Data Model"
-description: "The Chronos Atlas data model defines Proyectos, Carpetas, Entidades, Plantillas, Valores, Eventos, and more — all persisted in per-project SQLite files via OPFS."
+description: "The Chronos Atlas data model defines Proyectos, Carpetas, Entidades, Plantillas, Valores, Eventos, and more — all persisted in a local SQLite file via OPFS."
 ---
 
 Chronos Atlas persists all worldbuilding data in a **single SQLite file per project**, stored in the browser's Origin Private File System (OPFS) and accessed through the SQLocal Web Worker. The schema follows a hybrid design: first-class tables for structural concerns (projects, folders, events, relationships) and an **Entity-Attribute-Value (EAV) pattern** for dynamic, user-defined fields on entities. Every TypeScript interface in the domain layer maps directly to a SQLite table.
@@ -113,7 +113,7 @@ An attribute template — the schema definition for a custom field. Plantillas a
 export interface Plantilla {
   id: number;
   nombre: string;
-  tipo: string;                       // "text" | "short_text" | "number" | "date" | "select" | ...
+  tipo: string;                       // "text" | "long_text" | "number" | "date" | "boolean" | "select"
   valor_defecto: string | null;
   metadata: string | null;            // JSON: options array for "select" type, etc.
   es_obligatorio: boolean | number;
@@ -166,7 +166,7 @@ The `Entidad` + `Plantilla` + `Valor` trio implements a flexible Entity-Attribut
 
 <Steps>
   <Step title="Define a template (Plantilla)">
-    A user creates a `Plantilla` such as "Alignment" (type: `select`, options: `["Lawful", "Neutral", "Chaotic"]`) scoped to `tipo_objetivo = "CHARACTER"`.
+    A user creates a `Plantilla` such as "Alignment" (type: `select`) scoped to `tipo_objetivo = "PERSONAJE"`.
   </Step>
   <Step title="Attach values (Valor)">
     When a character entity is saved, a `Valor` row is written linking `entidad_id` + `plantilla_id` + the chosen option string.
@@ -178,7 +178,7 @@ The `Entidad` + `Plantilla` + `Valor` trio implements a flexible Entity-Attribut
 
 ## `contenido_json`
 
-The `contenido_json` column on `Entidad` (and the `contenido` column on `Hoja`) stores arbitrary structured data as a JSON string. This field is the escape hatch for module-specific rich data that does not fit a fixed relational schema:
+The `contenido_json` column on `Entidad` stores arbitrary structured data as a JSON string. This field is the escape hatch for module-specific rich data that does not fit a fixed relational schema:
 
 | Module | What `contenido_json` holds |
 |---|---|
@@ -210,7 +210,7 @@ proyectos (id PK, nombre UNIQUE, descripcion, tag, image_url, initials, fecha_cr
   └── dimension_lineas (id PK, nombre, carpeta_id FK, color, entidad_id FK)
   └── eventos_entidades (id PK, evento_id FK, entidad_id FK)
   └── pizarras (id PK, titulo, project_id FK, nodos_json, aristas_json, viewport_json)
-  └── calendarios (id PK, nombre, project_id FK, meses_json, dias_semana_json, borrado)
+  └── calendarios (id PK, nombre, project_id FK, meses_json, dias_semana_json, fecha_inicio_json, borrado)
   └── grafo_posiciones (id PK, entidad_id FK, contexto, x, y, UNIQUE(entidad_id, contexto))
 configuraciones (clave PK, valor, updated_at)
 ```

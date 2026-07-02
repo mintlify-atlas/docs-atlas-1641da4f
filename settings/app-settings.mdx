@@ -1,7 +1,7 @@
 ---
 title: "App Settings: Fonts, Language, and Interface Preferences"
 sidebarTitle: "App Settings"
-description: "Configure Chronos Atlas through the Settings panel — choose UI font, editor font, interface language (English/Spanish), and other display preferences."
+description: "Configure Chronos Atlas through the Settings panel — choose UI font, editor font size, interface language, panel layout mode, and backup options."
 ---
 
 The Settings module is the central control panel for your Chronos Atlas experience. All preferences — visual themes, typography, interface language, panel layout mode, and backup configuration — are adjusted here and persisted immediately to the local SQLite database via `SettingsUseCase.saveSettings()`. Settings are per-installation and apply across all projects on the device.
@@ -14,7 +14,7 @@ Click the **gear icon** (`settings`) in the footer of the left sidebar from any 
 - **Appearance & Editor** — themes, fonts, panel layout, and language
 
 <Note>
-  Settings are stored as key-value pairs in the local SQLite database using `settingsService.set(key, value)`. They are loaded at application startup via `SettingsUseCase.loadSettings()` and applied globally.
+  Settings are stored as key-value pairs in the local SQLite `configuraciones` table using `settingsService.set(key, value)`. They are loaded at application startup via `SettingsUseCase.loadSettings()` and applied globally. Each key is upserted — inserting on first save and updating on subsequent saves.
 </Note>
 
 ## Language
@@ -38,7 +38,7 @@ To switch languages:
   </Step>
 </Steps>
 
-The language preference is stored in the `LanguageContext` and passed down to all components. The default language is Spanish (`es`).
+The default language is Spanish (`es`).
 
 ## Font Selection
 
@@ -54,17 +54,21 @@ Available fonts:
 | `Playfair Display` | Playfair (Elegante) | Elegant editorial layouts |
 | `JetBrains Mono` | JetBrains Mono (Codex) | Technical / data-dense views |
 
-The font is applied as an inline `fontFamily` style directly in the select preview element, so you see the font rendered in its own face before committing.
+The font is applied as an inline `fontFamily` style to the preview element, so you see the font rendered in its own face before committing.
 
 A **font size slider** (range `12px`–`24px`, default `16px`) lets you adjust the base reading size globally. The current value is displayed live next to the slider label.
 
+## AppSettings Interface
+
+All preference fields are captured in the `AppSettings` interface and persisted together via `SettingsUseCase.saveSettings()`:
+
 ```ts
-// AppSettings interface from SettingsUseCase.ts
+// AppSettings interface — SettingsUseCase.ts
 export interface AppSettings {
-  theme: string;
-  font: string;
-  fontSize: number;
-  panelMode: string;
+  theme: string;       // e.g. "deep_space", "nebula_light"
+  font: string;        // e.g. "Outfit", "JetBrains Mono"
+  fontSize: number;    // 12–24, default 16
+  panelMode: string;   // "classic" | "binder" | "floating"
   autoBackup: boolean;
 }
 ```
@@ -72,12 +76,14 @@ export interface AppSettings {
 Settings are saved and loaded through:
 
 ```ts
-// Persist settings to SQLite
+// Persist all settings to SQLite configuraciones table
 await SettingsUseCase.saveSettings(settings);
 
-// Load settings on startup
+// Load settings on startup — returns null if no keys exist yet
 const saved = await SettingsUseCase.loadSettings();
 ```
+
+The defaults applied when no stored settings are found are: `theme: "deep_space"`, `font: "Outfit"`, `fontSize: 16`, `panelMode: "classic"`, `autoBackup: false`.
 
 ## Theme
 
@@ -102,7 +108,7 @@ The **Panel Architecture** section controls how the main content panels are arra
     **Paneles Acoplados** — traditional three-column layout with a left sidebar, main content area, and right detail panel docked side by side.
   </Card>
   <Card title="Binder" icon="book-open">
-    **Pestañas Izquierdas** — left panel organized as tabs, with the main content taking full remaining width.
+    **Pestañas Izquierdas** — left panel organized as tabs, with the main content taking the full remaining width.
   </Card>
   <Card title="Floating" icon="window-restore">
     **Modales Superiores** — side panels appear as floating modals above the main content for maximum immersion.
@@ -115,9 +121,22 @@ The selected mode is stored as `settings.panelMode` and applied at the layout le
 
 The **Sync & Backup** section (General tab) manages data persistence and export:
 
-- **Import** — upload a `.db`, `.sqlite`, `.sqlite3`, or `.zip` file to overwrite the local database. ZIP imports are processed asynchronously by the Java backend via a polling job. Handled by `SettingsUseCase.importDatabase(file)`.
-- **Export (ZIP)** — packages the full OPFS database and all media assets into a ZIP archive for download. Calls `SettingsUseCase.exportBackup()`.
+- **Import** — upload a `.db`, `.sqlite`, `.sqlite3`, or `.zip` file to overwrite the local database. SQLite files are applied directly via `sqlocal.overwriteDatabaseFile(file)`. ZIP imports are processed asynchronously by the Java backend and polled until completion. Handled by `SettingsUseCase.importDatabase(file)`.
+- **Export (ZIP)** — packages the full OPFS database and all media assets into a ZIP archive for download. Calls `SettingsUseCase.exportBackup(identifier)`, which delegates to `syncService.exportToDisk()`.
 - **Auto Sync** — a toggle that enables automatic backup to the local server every 10 minutes when there are pending changes. Stored as `settings.autoBackup`.
+- **Cloud Sync** — shown in the UI but currently marked as coming soon. No cloud endpoint is active.
+
+## User Profile
+
+The **Architect Profile** section (General tab) lets you set a display name and upload a local avatar image. Profile data is persisted as JSON in the `configuraciones` table under the `"user"` key via `SettingsUseCase.saveUser(user)`. The `UserData` interface is:
+
+```ts
+export interface UserData {
+  displayName?: string;
+  username?: string;
+  avatarUrl?: string;
+}
+```
 
 ## Project-level Settings
 

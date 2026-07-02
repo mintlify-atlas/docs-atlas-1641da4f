@@ -1,7 +1,7 @@
 ---
 title: "Database API: Project Backup, Restore, and Import/Export"
 sidebarTitle: "Database API"
-description: "REST endpoints under /db for listing, downloading, uploading, and ZIP-exporting Chronos Atlas project SQLite databases, including async import with job tracking."
+description: "Endpoints under /db for listing, downloading, uploading, and ZIP-exporting project SQLite databases, plus async import with background job tracking."
 ---
 
 The `/db` endpoints manage the full lifecycle of a project's SQLite database file on the local server filesystem. They expose operations for listing available backups, downloading a project database to the browser, uploading a new or restored database to disk, and ZIP-based export/import that bundles the SQLite file together with its associated map assets. All paths are served under `/api/db` when accessed through the Vite dev-server proxy.
@@ -12,7 +12,7 @@ The `/db` endpoints manage the full lifecycle of a project's SQLite database fil
 
 ## Base URL
 
-```
+```text
 http://localhost:8080/api/db
 ```
 

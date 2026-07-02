@@ -1,7 +1,7 @@
 ---
-title: "World Bible Export API: Compile Your World to DOCX or HTML"
+title: "World Bible Export API: EPUB, PDF, DOCX, and HTML Export"
 sidebarTitle: "World Bible Export"
-description: "POST /worldbible/export/{projectName} compiles a Chronos Atlas world bible to a downloadable document — supporting EPUB, PDF, DOCX, and offline HTML formats."
+description: "POST /worldbible/export compiles a Chronos Atlas project into a downloadable world bible — choose from EPUB, PDF, DOCX, or offline HTML output formats."
 ---
 
 The World Bible Export endpoint compiles a project's entire content tree — folders, entities, rich text, metadata — into a single polished document. The Java backend's `BookCompilerService` orchestrates the layout, applies the settings (cover image, theme colour, margins, font size), and returns the compiled file as a binary stream for the user to download. This is the publishing step that transforms a living worldbuilding workspace into a shareable compendium.
@@ -12,7 +12,7 @@ The World Bible Export endpoint compiles a project's entire content tree — fol
 
 ## Base URL
 
-```
+```text
 http://localhost:8080/api/worldbible
 ```
 

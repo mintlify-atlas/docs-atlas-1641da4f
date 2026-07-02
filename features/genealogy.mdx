@@ -1,7 +1,7 @@
 ---
 title: "Genealogy: Family Trees for Characters and Bloodlines"
 sidebarTitle: "Genealogy"
-description: "The Genealogy module in Chronos Atlas lets you build visual family trees, assign parent-child relationships, and navigate complex bloodlines across your world's characters."
+description: "Build visual family trees in Chronos Atlas — drag characters onto a canvas, auto-resolve relationships as edges, and explore bloodlines and dynasties."
 ---
 
 The Genealogy module provides a visual canvas for mapping the family connections between characters in your world. Rather than tracking lineages through text notes or relationship lists, you can drag entities onto a shared canvas, let Chronos Atlas resolve their existing relationships into edges, and build a clear picture of bloodlines, dynasties, and kinship networks across your project.
@@ -37,33 +37,26 @@ When you drop an entity, the `handleDropNode` function:
 3. Collects the IDs of all neighbor entities and places them in a tight spiral (`radius = 200 + floor(index / 3) * 200`) around the drop point.
 4. Recomputes all edges between every node currently on the canvas.
 
-## Assigning Relationships
+## Relationships on the Canvas
 
-The Genealogy canvas visualizes relationships that already exist in the database. To define new parent-child, sibling, or marriage connections, use the **`FamilyTreeAssigner`** component, which provides a dedicated form for linking `Individual` type entities with family-specific relationship types.
-
-<CardGroup cols={2}>
-  <Card title="Parent / Child" icon="family">
-    Assign a `parent` or `child` relationship between two Individual entities. This creates a directional `Relacion` record with `tipo = "parent"` (or your custom label).
-  </Card>
-  <Card title="Sibling / Spouse" icon="users">
-    Assign sibling or spouse relationships for horizontal lineage connections. These appear as undirected-style edges on the Genealogy canvas.
-  </Card>
-</CardGroup>
-
-All relationships created through the `FamilyTreeAssigner` are stored as standard `Relacion` records, which means they are also visible in the Relationship Graph module and in each entity's relationship list in the World Bible.
+The Genealogy canvas visualizes relationships that already exist in the database. All relationships are stored as `Relacion` records — the same records used by the Relationship Graph module. The `tipo` field is a free-form string label you define, so you can use any naming convention that fits your world (`parent`, `child`, `sibling`, `spouse`, or any other kinship term).
 
 ```ts
 // Relacion record structure used by both Genealogy and Graph
 export interface Relacion {
   id: number;
-  origen_id: number;    // parent/source entity
-  destino_id: number;   // child/target entity
+  origen_id: number;    // source entity
+  destino_id: number;   // target entity
   tipo: string;         // e.g. "parent", "sibling", "spouse"
   descripcion: string | null;
   project_id: number;
   created_at: string;
 }
 ```
+
+To define new connections between characters, use the Relationships module within the World Bible entity inspector. Any relationship created there is immediately visible on the Genealogy canvas the next time both entities are present on the canvas.
+
+All relationships created through the Genealogy module are stored as standard `Relacion` records, which means they are also visible in the Relationship Graph module and in each entity's relationship list in the World Bible.
 
 ## Tree Navigation
 
@@ -75,9 +68,9 @@ Once entities are placed on the canvas, you can explore the family tree fluidly:
 - **Navigate to full profile** — from the node inspection panel, follow the link to the entity's complete World Bible entry where all attributes, custom fields, and notes are visible.
 
 <Note>
-  Advanced genealogy features — including complex lineages (e.g., half-siblings, adoptions), noble house systems, and multi-generational inheritance tracking — are planned for a future release (Phase 5 of the Chronos Atlas roadmap).
+  Advanced genealogy features — including complex lineages (e.g., half-siblings, adoptions), noble house systems, and multi-generational inheritance tracking — are planned for a future release.
 </Note>
 
 <Tip>
-  Genealogy works best when characters are already created in the World Bible using the **Individual** archetype. Ensure each character has a distinct name before building the tree, as the canvas uses `Entidad.nombre` as the node label.
+  Genealogy works best when characters are already created in the World Bible. Ensure each character has a distinct name before building the tree, as the canvas uses `Entidad.nombre` as the node label.
 </Tip>

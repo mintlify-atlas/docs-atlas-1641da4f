@@ -1,7 +1,7 @@
 ---
-title: "Entities, Archetypes, and Dynamic Attributes"
+title: "Entities, Archetypes, and the EAV Attribute System"
 sidebarTitle: "Entities & Archetypes"
-description: "Learn how Chronos Atlas models world elements as Entities with dynamic EAV attributes, and how Archetypes (Templates) define the fields available per entity type."
+description: "How Chronos Atlas models world elements as Entities using an EAV system — Archetypes (Plantillas) define custom fields and Values store per-entity data."
 ---
 
 Everything in your world that has an identity — a character, a nation, a city, an ancient war, a divine plane — is represented in Chronos Atlas as an **Entity** (`Entidad`). Instead of rigid, hardcoded forms, Chronos Atlas uses an **Entity-Attribute-Value (EAV)** model: each Entity has a fixed set of core fields (name, type, description) plus an unlimited number of dynamic attribute values whose definitions are stored separately as **Archetypes** (`Plantillas`). This means your character sheet for a fantasy novel can look completely different from the one for a sci-fi campaign, and both can evolve over time without any schema migrations.

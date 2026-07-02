@@ -1,7 +1,7 @@
 ---
-title: "Workspaces and Projects in Chronos Atlas"
+title: "Workspaces and Projects: Data Model in Chronos Atlas"
 sidebarTitle: "Workspaces"
-description: "Understand how Chronos Atlas organizes creative work into Workspaces and Projects — each project is an isolated SQLite database on your local machine."
+description: "How Chronos Atlas organizes worlds into Projects inside a single OPFS SQLite file — each project isolated by foreign key, with typed folder containers."
 ---
 
 Chronos Atlas uses a two-level organizational structure to keep your creative work well-scoped and portable. At the top level, a **Workspace** represents a broad creative universe — a fantasy world, a book series, a tabletop campaign. Within each Workspace sit one or more **Projects**, each of which is a fully isolated SQLite database stored on your machine. This separation means that two projects in the same Workspace share no data by default, giving you clean boundaries between, say, a prequel novel and its sequel while keeping them logically grouped under one universe.
@@ -18,7 +18,7 @@ When you open Chronos Atlas you land on the **WorkspaceSelector** page. Here you
 
 ## Projects
 
-A Project is the concrete unit of storage in Chronos Atlas. Technically, each Project is its own isolated SQLite `.sqlite` file persisted to the browser's Origin Private File System (OPFS). When you create a Project inside a Workspace, a new database file is provisioned and the schema is initialized automatically.
+A Project is the concrete unit of storage in Chronos Atlas. All projects share a single SQLite database file (`worldbuilding_app.sqlite3`) persisted in the browser's Origin Private File System (OPFS). Projects are logically isolated from one another by their `project_id` foreign key — every table that stores worldbuilding content (entities, folders, events, and more) includes a `project_id` column, and all queries are filtered by the active project. When you create a Project, a new row is inserted into the `proyectos` table and the schema is confirmed to be up-to-date.
 
 Projects are managed through the `WorkspaceUseCase` class in the application layer:
 
@@ -73,6 +73,30 @@ export interface Proyecto {
     Automatically updated timestamp used to sort projects by most-recently-used in the selector.
   </Card>
 </CardGroup>
+
+## The `Carpeta` Interface
+
+Every folder in Chronos Atlas is represented by the `Carpeta` interface, defined in `src/features/App/domain/database.ts`:
+
+```typescript
+export interface Carpeta {
+  id: number;
+  nombre: string;
+  project_id: number;
+  padre_id: number | null;
+  tipo: FolderType;
+  slug: string;
+  borrado: number;
+  itemCount?: number;
+}
+```
+
+Key fields:
+
+- **`padre_id`** — the parent folder's ID. `null` means the folder sits at the project root.
+- **`tipo`** — determines which specialized module opens when you navigate into this folder (see `FolderType` below).
+- **`borrado`** — soft-delete flag (`0` = active, `1` = trashed). Deleted folders are hidden from the sidebar but remain in the database.
+- **`itemCount`** — optionally computed count of child entities; not persisted in the database.
 
 ## Folder Types
 

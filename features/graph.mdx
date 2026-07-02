@@ -15,7 +15,7 @@ Every **entity** in your project appears as a **node** on the canvas. Every **re
     Each node represents one entity (`Entidad`). Nodes are color-coded by entity type (`tipo`) so you can instantly distinguish characters from locations, organizations, objects, and events.
   </Card>
   <Card title="Edges" icon="arrow-right-arrow-left">
-    Each edge represents a `Relacion` record. The edge label displays the relationship type (e.g., "ally", "parent", "rules") drawn from the `tipo` field of the relationship.
+    Each edge represents a `Relacion` record. The edge label displays the relationship type drawn from the `tipo` field of the relationship.
   </Card>
 </CardGroup>
 
@@ -27,14 +27,14 @@ Each node on the canvas carries the following data from the `GraphNode` interfac
 export interface GraphNode {
   id: string;
   originalId: number | string;
-  originalType: string;  // e.g. "PERSONAJE", "LUGAR", "ORGANIZACION"
+  originalType: string;
   name: string;
   description: string;
   type: string;
   icon: string;
   x: number;
   y: number;
-  color: string;        // derived from entity type for visual coding
+  color: string;
 }
 ```
 
@@ -49,6 +49,15 @@ export interface GraphConnection {
 }
 ```
 
+The full graph state is represented by `GraphData`:
+
+```ts
+export interface GraphData {
+  nodes: GraphNode[];
+  connections: GraphConnection[];
+}
+```
+
 <Note>
   The graph is computed in real-time from the local SQLite database stored in your browser's OPFS. For large worlds with thousands of entities, use the filter controls to narrow the visible set and keep the canvas performant.
 </Note>
@@ -59,7 +68,7 @@ The left sidebar of the Graph view contains the **Entity Database panel** — a 
 
 - **Search** — type in the filter field to narrow the list by entity name.
 - **Focus** — click any entity in the list to center the graph canvas on the corresponding node and highlight it.
-- **Type filter** — filter the list by entity archetype (Individual, Collective, Territory, etc.) to reduce noise when working with large worlds.
+- **Type filter** — filter the list by entity type to reduce noise when working with large worlds.
 
 The Entity Database panel pulls from `entityService.getAllByProject(projectId)` and stays in sync with the graph canvas — selecting a node on the canvas also highlights the matching entry in the panel.
 
@@ -82,7 +91,7 @@ The graph toolbar (accessible from the top-right of the canvas) exposes layout a
 
 | Control | Function |
 |---|---|
-| Entity type filter | Toggle visibility of nodes by type (Individual, Collective, Territory, Object, Event) |
+| Entity type filter | Toggle visibility of nodes by type |
 | Edge labels | Show or hide relationship type labels on edges |
 | Layout reset | Re-run the force-directed layout algorithm to untangle overlapping nodes |
 | Zoom to fit | Fit the entire graph within the visible viewport |

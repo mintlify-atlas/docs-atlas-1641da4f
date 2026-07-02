@@ -1,7 +1,7 @@
 ---
 title: "World Bible: Hierarchical Entity Library for Your World"
 sidebarTitle: "World Bible"
-description: "The World Bible is Chronos Atlas's core entity database — organize characters, locations, factions, events, and more in a hierarchical folder structure with rich-text editing."
+description: "Chronos Atlas's core entity database — organize characters, locations, factions, and events in a typed folder hierarchy with a full rich-text editor."
 ---
 
 The World Bible is the central knowledge base of every project in Chronos Atlas. It gives you a structured, searchable library for every person, place, faction, event, and concept that exists in your world — all stored locally in SQLite WASM (via SQLocal) inside the browser's Origin Private File System (OPFS). Everything you write lives on your machine, with zero cloud dependency.
@@ -14,34 +14,42 @@ Every piece of world knowledge — a character's biography, a kingdom's politica
 
 ## Entity Types
 
-Entities in the World Bible are classified into five broad archetype categories. Each archetype carries its own icon, color coding, and set of default attribute templates, giving you a consistent visual language across all your projects.
+Entities in the World Bible are classified by their `tipo` field — a free-form string that maps to one of the canonical hierarchy types defined in `hierarchy.ts`. The application uses these type identifiers for color-coding, icon selection, and filtering throughout the UI.
 
 <CardGroup cols={3}>
-  <Card title="Individual" icon="user">
-    Characters, creatures, and any singular sentient being with a personal history and attributes. Maps to the **personaje** hierarchy type.
+  <Card title="personaje" icon="user">
+    Characters, creatures, and any singular sentient being with a personal history and attributes. Displayed under the **Entities** category in the hierarchy.
   </Card>
-  <Card title="Collective" icon="users">
-    Factions, kingdoms, guilds, religions, and any organized group of individuals. Maps to the **organizacion** hierarchy type.
+  <Card title="organizacion" icon="users">
+    Factions, kingdoms, guilds, religions, and any organized group of individuals. Displayed under the **Factions** category.
   </Card>
-  <Card title="Territory" icon="map-pin">
-    Locations, regions, cities, landmarks, and geographic features within your world. Maps to the **lugar** hierarchy type.
+  <Card title="lugar" icon="map-pin">
+    Locations, regions, cities, landmarks, and geographic features within your world. Displayed under the **Geography** category.
   </Card>
-  <Card title="Event" icon="calendar">
-    Historical milestones, battles, discoveries, and pivotal moments in your world's chronology. Maps to the **evento** hierarchy type.
+  <Card title="evento" icon="calendar">
+    Historical milestones, battles, discoveries, and pivotal moments in your world's chronology.
   </Card>
-  <Card title="Cosmic" icon="sparkles">
-    Abstract forces, deities, dimensions, magic systems, and anything that transcends a single place or time. Maps to the **dimension** and **magic** hierarchy types.
+  <Card title="objeto" icon="box">
+    Relics, weapons, artifacts, and objects of narrative importance. Displayed under the **Items** category.
+  </Card>
+  <Card title="conlang" icon="language">
+    Constructed languages and their writing systems. Displayed under the **Linguistics** category.
   </Card>
 </CardGroup>
 
+Additional hierarchy types such as `universe`, `planet`, `geography`, `magic`, `factions`, `items`, `folder`, `dimension`, `map`, and `timeline` are defined in `hierarchy.ts` and used by the UI for structural organization and visual theming.
+
 ## Folder Structure
 
-The World Bible organizes entities inside a nested folder hierarchy. Folders are typed, so the tree communicates the nature of its contents at a glance. Three folder types are available:
+The World Bible organizes entities inside a nested folder hierarchy. Folders are typed using the `FolderType` union defined in `database.ts`, so the tree communicates the nature of its contents at a glance. All six folder types are available:
 
 | Folder Type | Purpose |
 |---|---|
 | `FOLDER` | A generic container for grouping related entities or sub-folders under any category. |
+| `TIMELINE` | A container for timeline universes and tracks. Used by the Timeline module. |
 | `DIMENSION` | Represents a parallel reality, cosmic plane, or alternate universe within your project. |
+| `CONLANG` | Groups constructed-language entries. Used by the Linguistics module. |
+| `MAPS` | Groups map entities. Used by the Maps module. |
 | `ARCHIVE` | A read-mostly container for historical or deprecated material you want to keep but de-emphasize. |
 
 Folders can be nested to any depth. A root `FOLDER` named "Characters" might contain sub-folders for "Heroes", "Villains", and "Supporting Cast", each holding their own entities. The `WorldBibleUseCase.createCategory` method creates a new root-level folder, while `getFolderContent` retrieves a folder's immediate children (both sub-folders and entities) in a single call.
@@ -74,7 +82,7 @@ The Java auxiliary backend exposes a World Bible Export API for compiling your e
 POST /worldbible/export/{projectName}?format={FORMAT}
 ```
 
-Supported `format` values are `DOCX`, `PDF`, and `HTML`. The request body carries a `settings` object (title, author, genre, cover image URL, theme color, margins, font size) and a `contentTree` object representing the folder/entity hierarchy to include in the compiled document. The backend's `BookCompilerService` processes the tree and streams the generated file back as a binary download.
+Supported `format` values are `EPUB`, `DOCX`, `PDF`, and `HTML`. The request body carries a `settings` object (title, author, genre, cover image URL, theme color, margins, font size) and a `contentTree` object representing the folder/entity hierarchy to include in the compiled document. The backend's `BookCompilerService` processes the tree and streams the generated file back as a binary download.
 
 <Note>
   The Java auxiliary backend must be running to use the Export feature. If it is offline, the export button will be unavailable in the UI.

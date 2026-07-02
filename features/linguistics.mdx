@@ -1,7 +1,7 @@
 ---
 title: "Linguistics: Build Custom Languages and Fonts for Your World"
 sidebarTitle: "Linguistics"
-description: "Chronos Atlas's Glyph Foundry lets you design constructed languages — create custom glyphs, build lexicons, define syllable rules, and export real .ttf fonts."
+description: "Design constructed languages in Chronos Atlas — draw custom glyphs, build a lexicon, define syllable rules, and export a real installable .ttf font."
 ---
 
 The Linguistics module — internally called the **Glyph Foundry** — is a self-contained constructed-language workshop built into Chronos Atlas. It lets you design a writing system from scratch: draw the individual glyphs of your alphabet, build a word lexicon with grammatical annotations, define the phonotactic rules that govern how words are formed, and ultimately compile all of that work into a real `.ttf` TrueType font that can be installed system-wide or used in any design tool. All language data is stored locally in SQLite WASM (SQLocal) in the browser's OPFS.
@@ -16,7 +16,7 @@ From the Hub you can:
 - **Open an existing language** — navigates into that language's full editing environment.
 - **Delete a language** — removes the language and all its associated glyphs, words, and syllable rules from the local database.
 
-The four supported writing system types are defined in `linguistics.ts`:
+The four supported writing system types are defined in `writing.ts` as `WritingSystemType` records:
 
 | Type ID | Name | Description |
 |---|---|---|
@@ -30,9 +30,37 @@ The four supported writing system types are defined in `linguistics.ts`:
 The Glyph Editor is the drawing canvas where you design each individual symbol of your language's writing system. Key features include:
 
 - **Vector drawing canvas** — draw glyphs using a Konva-backed raster canvas with shape primitives (`Shape`) organized into named `Layer` objects. Each layer tracks its own `shapes` array, visibility, and lock state.
-- **Character mapping** — every glyph is bound to a specific character it represents and a Unicode code point (`unicodeCode`). This mapping is what the font compiler uses to assign glyphs to the correct positions in the `.ttf` file.
-- **SVG path export** — when a glyph drawing session is finalized, the canvas content is serialized to an SVG path string and stored in the entity's `contenido_json` field as `svgPathData`. This path is later passed directly to the font compiler.
+- **Character mapping** — every glyph is bound to a specific character it represents and a Unicode code point. This mapping is what the font compiler uses to assign glyphs to the correct positions in the `.ttf` file.
+- **SVG path export** — when a glyph drawing session is finalized, the canvas content is serialized to an SVG path string. This path is later passed directly to the font compiler.
 - **Layers panel** — manage multiple drawing layers per glyph, toggle visibility, and lock layers to prevent accidental edits while refining details on another layer.
+
+The `Shape` type used by the Glyph Editor is defined in `writing.ts`:
+
+```typescript
+export interface Shape {
+  id: string;
+  type: string;
+  stroke?: string;
+  strokeWidth?: number;
+  opacity?: number;
+  x?: number;
+  y?: number;
+  points?: number[];
+  width?: number;
+  height?: number;
+  radius?: number;
+  fill?: string | null;
+  data?: string;
+}
+
+export interface Layer {
+  id: string;
+  name: string;
+  visible: boolean;
+  locked: boolean;
+  shapes: Shape[];
+}
+```
 
 ## Lexicon Manager
 
@@ -108,16 +136,26 @@ The request body must contain a `config` object with font metadata and a `glyphs
 
 The `config` fields map directly to the `FontConfig` model in the backend:
 
-| Field | Description |
-|---|---|
-| `fontFamily` | The name of the font family as it will appear in font menus. |
-| `version` | A semantic version string for the font file. |
-| `copyright` | Copyright or attribution notice embedded in the font metadata. |
-| `unitsPerEm` | The em-square size in font units. `1000` is the standard for TrueType. |
-| `ascender` | The ascender height in font units (typically 80% of `unitsPerEm`). |
-| `descender` | The descender depth in font units (negative value). |
+| Field | Type | Description |
+|---|---|---|
+| `fontFamily` | `String` | The name of the font family as it will appear in font menus. |
+| `version` | `String` | A semantic version string for the font file. |
+| `copyright` | `String` | Copyright or attribution notice embedded in the font metadata. |
+| `unitsPerEm` | `int` | The em-square size in font units. `1000` is the standard for TrueType. |
+| `ascender` | `int` | The ascender height in font units (typically 80% of `unitsPerEm`). |
+| `descender` | `int` | The descender depth in font units (negative value). |
 
-Each entry in the `glyphs` array corresponds to one `ConlangGlyph` record. The `svgPath` value is the path data string stored in the glyph's `contenido_json` after drawing. The backend's `FontCompilerService.compileTrueTypeFont` processes the config and glyphs and returns the compiled `.ttf` as a binary stream download.
+Each entry in the `glyphs` array corresponds to one `ConlangGlyph` record in the backend:
+
+| Field | Type | Description |
+|---|---|---|
+| `charRepresented` | `String` | The character this glyph represents (e.g., `"a"`). |
+| `unicodePoint` | `String` | The Unicode code point to assign (e.g., `"U+0061"`). |
+| `svgPath` | `String` | The SVG path data string for the glyph outline. |
+| `width` | `int` | The advance width of the glyph in font units. |
+| `height` | `int` | The height of the glyph in font units. |
+
+The backend's `FontCompilerService.compileTrueTypeFont` processes the config and glyphs and returns the compiled `.ttf` as a binary stream download.
 
 <Note>
   The Java auxiliary backend must be running to export fonts. If it is offline, the **Compile Font** button in the Glyph Foundry will be unavailable. Your glyph drawings and lexicon remain safely stored in the local OPFS database regardless of the backend's status.

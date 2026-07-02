@@ -1,7 +1,7 @@
 ---
 title: "Writing Hub: Notebooks and Distraction-Free Authoring"
 sidebarTitle: "Writing"
-description: "Write prose in Chronos Atlas using paginated rich-text notebooks with slash commands, entity @mentions, bubble toolbar formatting, and a full-screen Zen mode."
+description: "Write prose in Chronos Atlas using rich-text notebooks with slash commands, entity @mentions, bubble toolbar formatting, inline comments, and Zen mode."
 ---
 
 The Writing Hub is the narrative heart of Chronos Atlas — the dedicated area where you craft the actual prose of your world. Whether you are writing a novel, a lore document, or a character backstory, the Writing Hub organizes your work into structured Notebooks, each powered by a full-featured rich-text editor that keeps your content stored locally in the browser's OPFS-backed SQLite database.
@@ -145,15 +145,6 @@ await WritingUseCase.createSnapshot(pageId, htmlContent);
 // Retrieve version history
 const history = await WritingUseCase.getSnapshots(pageId);
 // Returns: Array<{ id, timestamp, contenido }>
-
-// Restore via EditorTopBar UI
-onRestoreSnapshot(snapshotId);
 ```
 
 Snapshots are displayed in the `EditorTopBar` history dropdown. Selecting one replaces the current editor content with the stored HTML.
-
-## Export
-
-Notebooks can be exported as part of the world's complete **World Bible** compilation. This is handled by the Java backend's world-bible endpoint, which bundles notebook pages alongside entity data, timelines, and maps into a structured export package.
-
-To export your data, go to **Settings → Sync & Backup** and use the **Export (ZIP)** button, which calls `SettingsUseCase.exportBackup()` and packages the full local SQLite database for download.

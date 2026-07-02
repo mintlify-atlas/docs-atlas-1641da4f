@@ -25,7 +25,7 @@ This follows the **EAV (Entity–Attribute–Value)** pattern: the schema lives 
 
 <Steps>
   <Step title="Navigate to Archetype Manager">
-    Open **Settings** (gear icon in the left sidebar footer), then click **Archetype Manager** in the navigation. The page loads all existing archetypes for the current project.
+    Open **Settings** (gear icon in the left sidebar footer), then click **Archetype Manager** in the navigation. The page loads all existing archetypes for the current project via `TemplateUseCase.getTemplates(projectId)`.
   </Step>
   <Step title="Click '+ Nuevo Atributo'">
     Click the primary button in the top-right of the page header. The creation form expands inline within a highlighted panel.
@@ -36,26 +36,26 @@ This follows the **EAV (Entity–Attribute–Value)** pattern: the schema lives 
   <Step title="Choose the data type">
     Select one of the six supported field types from the **Tipo de Dato** dropdown:
 
-    | Type | Description |
-    |---|---|
-    | `text` | Short single-line text |
-    | `long_text` | Multi-line textarea |
-    | `number` | Numeric value |
-    | `date` | Date picker |
-    | `boolean` | Yes/No toggle (Interruptor) |
-    | `select` | Dropdown list (options defined in metadata) |
+    | Type | Label in UI | Description |
+    |---|---|---|
+    | `text` | Texto Corto | Short single-line text |
+    | `long_text` | Texto Largo | Multi-line textarea |
+    | `number` | Número | Numeric value |
+    | `date` | Fecha | Date picker |
+    | `boolean` | Interruptor (Sí/No) | Yes/No toggle |
+    | `select` | Lista Desplegable | Dropdown list |
   </Step>
   <Step title="Assign a category">
-    Enter a **Categoría** label (e.g., "Apariencia", "Estadísticas", "Biografía"). Category names group related fields into collapsible sections in the entity editor sidebar.
+    Enter a **Categoría** label (e.g., "Apariencia", "Estadísticas", "Biografía"). Category names group related fields into sections in the entity editor sidebar.
   </Step>
   <Step title="Set the scope">
-    Choose **Global** to apply the field to all entity types in the project, or **Específico** to restrict it to one type. If Específico is selected, choose the target type from the dropdown: `PERSONAJE`, `LUGAR`, `ORGANIZACION`, `OBJETO`, or `EVENTO`.
+    Choose **Global** (`aplica_a_todo = 1`) to apply the field to all entity types in the project, or **Específico** (`aplica_a_todo = 0`) to restrict it to one type. If Específico is selected, choose the target type from the dropdown: `PERSONAJE`, `LUGAR`, `ORGANIZACION`, `OBJETO`, or `EVENTO`.
   </Step>
   <Step title="Toggle required">
-    Check **Es obligatorio** if the field must be filled before an entity can be saved. Required fields are visually flagged in the entity editor.
+    Check **Es obligatorio** if the field must be filled. This sets `es_obligatorio = 1` on the `Plantilla` record.
   </Step>
   <Step title="Save">
-    Click **Establecer Ley** to save the new archetype. It immediately appears in the archetype list and will render as a field in all relevant entity editors.
+    Click **Establecer Ley** to save the new archetype via `TemplateUseCase.createTemplate()`. It immediately appears in the archetype list and will render as a field in all relevant entity editors.
   </Step>
 </Steps>
 
@@ -112,16 +112,16 @@ Every archetype is stored as a `Plantilla` record. The full TypeScript interface
 ```ts
 export interface Plantilla {
   id: number;
-  nombre: string;            // Field label shown in the UI
-  tipo: string;              // "text" | "long_text" | "number" | "date" | "boolean" | "select"
-  valor_defecto: string | null;  // Default value pre-filled in new entities
-  metadata: string | null;   // JSON string (e.g., select options list)
-  es_obligatorio: boolean | number; // Whether the field is required
-  project_id: number;        // Owning project
+  nombre: string;                   // Field label shown in the UI
+  tipo: string;                     // "text" | "long_text" | "number" | "date" | "boolean" | "select"
+  valor_defecto: string | null;     // Default value pre-filled in new entities
+  metadata: string | null;          // JSON string (e.g., options list for "select" type)
+  es_obligatorio: boolean | number; // Whether the field is required (1 = required)
+  project_id: number;               // Owning project
   aplica_a_todo: boolean | number;  // 1 = all entity types, 0 = tipo_objetivo only
   tipo_objetivo: string | null;     // "PERSONAJE" | "LUGAR" | "ORGANIZACION" | "OBJETO" | "EVENTO"
-  categoria: string | null;  // Grouping label for the entity editor sidebar
-  orden: number;             // Display order within the category
+  categoria: string | null;         // Grouping label for the entity editor sidebar
+  orden: number;                    // Display order within the category
   created_at: string;
 }
 ```
@@ -150,12 +150,8 @@ The archetype list on the Archetype Manager page displays every `Plantilla` for 
 
 Click **Edit** (pencil icon) on a row to load its data back into the form. The submit button changes to **Actualizar Regla**. Saving writes the changes via `TemplateUseCase.updateTemplate()`.
 
-Click **Delete** (trash icon) to remove the archetype. This also removes all `Valor` records associated with that `Plantilla` across all entities in the project (cascade behavior is enforced at the database level).
-
-## Bulk Editing Attribute Values
-
-After archetypes are defined, you can fill in values for many entities at once using the **tabular World Bible view**. This view renders all entities of a given type in a spreadsheet-like grid where each custom attribute column corresponds to a `Plantilla`. Click any cell to edit the `Valor` inline without opening the full entity editor.
+Click **Delete** (trash icon) to remove the archetype via `TemplateUseCase.deleteTemplate()`. This also removes all `Valor` records associated with that `Plantilla` across all entities in the project (cascade behavior enforced at the database level).
 
 <Tip>
-  Use the **Categoría** field to group related attributes. For example, group `"Height"`, `"Eye Color"`, and `"Hair Color"` under `"Appearance"`, and `"Strength"`, `"Agility"`, and `"Magic Level"` under `"Stats"`. The entity editor sidebar renders each category as a collapsible section, keeping the attribute list navigable even for entities with dozens of custom fields.
+  Use the **Categoría** field to group related attributes. For example, group `"Altura"`, `"Color de Ojos"`, and `"Color de Pelo"` under `"Apariencia"`, and `"Fuerza"`, `"Agilidad"`, and `"Nivel de Magia"` under `"Estadísticas"`. The entity editor sidebar renders each category as a section header, keeping the attribute list navigable even for entities with dozens of custom fields.
 </Tip>

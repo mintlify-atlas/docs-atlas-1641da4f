@@ -65,6 +65,52 @@ The **MapEditor toolbar** exposes the following drawing tools:
 
 The full drawing state — layers, markers, connections, zoom level, and center coordinates — is serialized as a `MapAttributes` JSON object and saved to the entity's `contenido_json` field via `MapUseCase.updateMap`.
 
+## Map Data Types
+
+The `maps.ts` domain file defines the core types used throughout the Maps module:
+
+```typescript
+export interface MapMarker {
+  id: string;
+  x?: number;
+  y?: number;
+  lng?: number;
+  lat?: number;
+  label?: string;
+  description?: string;
+  type?: string;
+  entityId?: number | string | null;
+  layerId?: string;
+  targetLevelId?: string | null;
+}
+
+export interface MapConnection {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  label?: string;
+  type?: string;
+  weight?: number;
+  layerId?: string;
+  color?: string;
+  dashed?: boolean;
+}
+
+export interface MapLayer {
+  id: string;
+  name: string;
+  visible: boolean;
+  opacity: number;
+  type: "base" | "image" | "vector" | "spray" | "markers" | string;
+  url?: string;
+  color?: string;
+  featureType?: "line" | "polygon" | "point";
+  attribution?: string;
+}
+```
+
+The `AtlasAttributes` type extends `MapAttributes` with additional fields for the multi-level Atlas drawing mode, including `levels`, `canvasStates`, `levelBgImages`, and `annotations`.
+
 ## Map Atlas Sidebar
 
 The left sidebar of the Maps module is the **Map Atlas**, a panel that lists every map belonging to the current project. It mirrors the folder-tree pattern used in the World Bible: maps are grouped by their `carpeta_id` association, and a search box at the top filters the list by name in real time. Clicking any entry in the Atlas sidebar loads that map into the editor area and deselects the previous one cleanly.

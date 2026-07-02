@@ -1,7 +1,7 @@
 ---
 title: "Architecture Guardrails: Enforcing Feature Slice Boundaries"
 sidebarTitle: "Guardrails"
-description: "Chronos Atlas uses an automated architecture check script to detect cross-feature deep imports and business logic leaking into the Shared kernel — enforcing clean vertical slice boundaries."
+description: "Run architecture-check.mjs to catch cross-feature deep imports and Shared kernel contamination before they become technical debt in Chronos Atlas."
 ---
 
 Chronos Atlas is built on a Feature-Sliced Architecture where each feature (Entities, Maps, Timeline, Writing, Linguistics, WorldBible, Graph, Shell, etc.) owns its internal layers — `application`, `components`, `hooks`, `pages`, `domain`, and `store` — and communicates outward only through its public `index.ts`. Without automated enforcement, the boundaries between these slices erode over time: one feature imports directly into another feature's internals, or utility code in the `Shared` kernel quietly accumulates business logic. The architecture guardrail script (`frontend/scripts/architecture-check.mjs`) catches these violations mechanically, before they become technical debt.
@@ -20,7 +20,7 @@ npm run arch:check:strict
 
 The terminal output shows a summary immediately after the scan:
 
-```
+```text
 Architecture guard report generated: reports/architecture-guard-report.json
 Files scanned: 302
 Violations: 0
@@ -53,7 +53,7 @@ import { useMapEditor, MapCanvas } from "@features/Maps";
 
 The script matches imports against the pattern:
 
-```
+```text
 @features/<FeatureName>/(components|hooks|pages|application|domain|store)/...
 ```
 

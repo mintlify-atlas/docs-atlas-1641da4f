@@ -1,5 +1,5 @@
 ---
-title: "Contributing to Chronos Atlas"
+title: "Contributing to Chronos Atlas: Guidelines and Workflow"
 sidebarTitle: "Contributing"
 description: "Learn how to contribute to Chronos Atlas — understand the feature-first architecture, follow placement rules, update documentation, and submit changes."
 ---
@@ -53,7 +53,7 @@ Follow these steps in order before writing any new code. Skipping them is the mo
   <Step title="Create or extend the correct feature slice">
     New functionality belongs in `src/features/<FeatureName>/`. Create the slice directory with only the sub-folders you actually need (`application`, `components`, `hooks`, `pages`, `domain`, `store`). Do not pre-create empty folders. Add a root-level `index.ts` that exports the feature's public API.
 
-    ```
+    ```text
     src/features/MyFeature/
     ├── application/   # use-case orchestration
     ├── components/    # visual components reusable within this feature
@@ -153,5 +153,5 @@ Chronos Atlas uses a **dual license model**. The full terms are in `LICENSE.txt`
 All contributions submitted to the project must be compatible with both licenses. If you are unsure whether your contribution qualifies, review `LICENSE.txt` before opening a pull request.
 
 <Note>
-  Chronos Atlas is under **active development**. Phase 5 has several large modules planned — Visual Planning (Whiteboards with post-its and arc connectors), advanced Genealogy with complex lineages, a second-generation Timeline engine with custom fantasy calendars, an advanced Linguistics motor with conjugation rules and phonetic evolution, editorial compilation (EPUB, PDF, DOCX), and P2P collaboration via WebRTC. Check `Docs/03_Roadmap_Vivo.md` before starting any work in these areas to avoid duplicating effort or conflicting with in-progress implementations.
+  Chronos Atlas is under **active development**. Phase 5 has several large modules planned — Visual Planning (Whiteboards with post-its and arc connectors), advanced Genealogy with complex lineages and magic/religion rule systems, a second-generation Timeline engine with custom fantasy calendars, an advanced Linguistics motor with conjugation rules and phonetic evolution, editorial compilation (EPUB, PDF, DOCX, and offline HTML), and P2P collaboration via WebRTC. Check `Docs/03_Roadmap_Vivo.md` before starting any work in these areas to avoid duplicating effort or conflicting with in-progress implementations.
 </Note>

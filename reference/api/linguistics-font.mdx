@@ -1,7 +1,7 @@
 ---
 title: "Linguistics Font API: Compile Conlang Glyphs to TTF"
 sidebarTitle: "Font Compile API"
-description: "POST /linguistics/font/compile accepts glyph SVG paths and font metadata, then returns a compiled .ttf TrueType font file for your custom constructed language."
+description: "POST /linguistics/font/compile takes SVG glyph paths plus font metadata and returns a compiled TrueType .ttf file ready for your constructed language."
 ---
 
 The Font Compile endpoint is the centrepiece of the Glyph Foundry module. After a worldbuilder has designed the individual glyphs of their constructed language inside the SVG canvas editor, this endpoint accepts those glyph definitions — each as an SVG path string with a character mapping and Unicode code point — alongside font-level metadata, and returns a compiled TrueType `.ttf` font file ready for installation and use in any application.
@@ -14,7 +14,7 @@ The compilation is handled server-side by `FontCompilerService`, which maps each
 
 ## Base URL
 
-```
+```text
 http://localhost:8080/api/linguistics
 ```
 

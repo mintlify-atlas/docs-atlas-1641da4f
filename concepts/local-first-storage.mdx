@@ -1,7 +1,7 @@
 ---
 title: "How Chronos Atlas Stores Data: Local-First with SQLite WASM"
 sidebarTitle: "Local Storage"
-description: "Chronos Atlas uses SQLite WASM (SQLocal) running inside a Web Worker, persisting data to the browser's Origin Private File System — with no cloud sync required."
+description: "SQLocal 0.17.0 runs SQLite WASM in a Web Worker and writes all data to OPFS — fully offline, zero cloud required, with optional Java backend disk backups."
 ---
 
 Chronos Atlas is built on a **local-first** philosophy: your worldbuilding data, entities, timelines, notebooks, and settings all live entirely on your own machine, inside the browser, with zero dependency on any external server or cloud account. This design guarantees zero-latency reads and writes, full offline operation, and absolute privacy — no third party ever sees your creative work. The Java auxiliary backend exists only as an optional tool for tasks that require deep filesystem access (exports, map assets, backups), and if it is not running, the core writing and editing experience continues uninterrupted.
@@ -82,16 +82,18 @@ static async importDatabase(
 ): Promise<{ success: boolean; message: string }>
 ```
 
-For ZIP imports — which bundle both the database and map assets — the backend processes the archive asynchronously. `SettingsUseCase` polls `/api/db/import/status/:jobId` until the job completes, then calls `sqlocal.overwriteDatabaseFile()` with the resulting blob to atomically replace the local database.
+**Exporting** calls `syncService.exportToDisk(identifier)`, which uploads the current OPFS `.sqlite` file to the backend via `POST /api/db/upload`. The backend saves it to the `backup/` directory on disk as `<identifier>.sqlite`.
+
+**Importing a `.sqlite` file** directly calls `sqlocal.overwriteDatabaseFile(file)` in the browser — no backend round-trip is required. **Importing a `.zip` file** (which bundles both the database and map assets) sends the archive to `POST /api/db/import/async/:projectName`. `SettingsUseCase` then polls `GET /api/db/import/status/:jobId` until the job completes, and finally fetches the processed database from `GET /api/db/import/result/:jobId` to call `sqlocal.overwriteDatabaseFile()` and replace the local database.
 
 For the full API reference for these endpoints, see [Database API Reference](/reference/api/database).
 
 <Steps>
   <Step title="Export a backup">
-    Go to **Settings → Backup**. Click **Export** to push the current database to the Java backend's `maps_assets/` directory as a named snapshot. A `.sqlite` file or `.zip` bundle (with map assets) will be saved to disk.
+    Go to **Settings → Backup**. Click **Export** to push the current database to the Java backend's `backup/` directory as a named snapshot. A `.sqlite` file will be saved to disk.
   </Step>
   <Step title="Download the backup file">
-    Use the backup listing in Settings to download the `.sqlite` or `.zip` file to a location of your choice outside the browser (e.g. a cloud drive, USB key, or version-controlled folder).
+    Use the backup listing in Settings to download the `.sqlite` file to a location of your choice outside the browser (e.g. a cloud drive, USB key, or version-controlled folder). For a full universe export including map assets, use the `.zip` export option, which bundles the database and the contents of `maps_assets/`.
   </Step>
   <Step title="Restore from backup">
     In **Settings → Backup**, click **Import** and select your saved `.sqlite` or `.zip` file. Chronos Atlas will overwrite the current OPFS database. **Reload the page** after the import completes to re-initialize the application with the restored data.

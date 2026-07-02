@@ -16,7 +16,7 @@ The Chronos Atlas auxiliary backend is a locally-run Java process that acts as a
 |---|---|---|
 | Language | Java | 21 |
 | Web Framework | Spring Web MVC | 5.3.31 |
-| Embedded Server | Eclipse Jetty | 9.4.x |
+| Embedded Server | Eclipse Jetty | 9.4.58.v20250814 |
 | JSON Serialisation | Jackson Databind | 2.15.2 |
 | Utilities | Project Lombok | 1.18.30 |
 | Logging | SLF4J + Logback | 1.7.36 / 1.2.13 |
@@ -28,7 +28,7 @@ The server is packaged as a self-contained fat JAR via the Maven Shade plugin an
 
 ## Domain Structure
 
-The backend follows a domain-driven package layout under `com.worldbuilding`:
+The backend follows a domain-driven package layout under `com.worldbuilding`. The Spring context is bootstrapped by `AuxServerApplication` with a component scan over both `com.worldbuilding.core` and `com.worldbuilding.domains`:
 
 ```text
 com.worldbuilding
@@ -71,9 +71,9 @@ com.worldbuilding
   </Card>
 </CardGroup>
 
-## CORS
+## CORS and Isolation Headers
 
-Every controller is annotated with `@CrossOrigin(origins = "*")`, and the Jetty bootstrap filter additionally sets the following response headers globally for all requests:
+The Jetty bootstrap filter sets the following response headers globally for all requests:
 
 ```text
 Access-Control-Allow-Origin: *

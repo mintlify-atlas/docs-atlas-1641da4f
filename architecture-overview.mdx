@@ -1,7 +1,7 @@
 ---
 title: "Chronos Atlas Architecture: Hybrid Local-First Design"
 sidebarTitle: "Architecture"
-description: "Explore how Chronos Atlas separates a thick React/SQLite frontend from a thin Java auxiliary backend, enabling fully offline operation with optional heavy-task support."
+description: "How Chronos Atlas separates a thick React/SQLite frontend from a thin Java auxiliary backend for fully offline operation with optional server-side tasks."
 ---
 
 Chronos Atlas is built on a **hybrid local-first architecture** where the React/TypeScript frontend is the sovereign owner of all application data, and the Java auxiliary backend acts purely as an on-demand helper worker. This inversion of the traditional web model means the application is fully operational without any server connection — the backend exists to extend capability, not to enable it. Data lives in your browser's private filesystem. The server provides compute.
@@ -128,14 +128,24 @@ The frontend Vite configuration defines a set of path aliases that enforce clean
 
 | Alias | Resolves To | Usage |
 |---|---|---|
-| `@features/*` | `src/features/*` | Accessing any feature's public API via its `index.ts` |
-| `@components/*` | `src/features/Shared/*` | Importing specific Shared kernel modules (e.g. `@components/primitives`) |
-| `@components` | `src/features/Shared/index` | Importing the full Shared public API barrel |
-| `@context/*` | `src/features/App/context/*` | Application-level React contexts (active workspace, project ID, etc.) |
-| `@domain/*` | Domain modules by feature | Typed domain contracts for `App`, `Maps`, `Timeline`, `Writing`, `Linguistics`, `WorldBible`, `Graph`, `Shell` |
+| `@features` | `src/features` | Root of the features directory |
+| `@components` | `src/features/Shared` | Importing from the Shared kernel (e.g. `@components/primitives`) |
+| `@context` | `src/features/App/context` | Application-level React contexts (active workspace, project ID, etc.) |
+| `@database` | `src/infrastructure/localDB/client` | The SQLocal `sqlocal` instance and `sql` tag |
+| `@infrastructure` | `src/infrastructure` | Full infrastructure layer root |
+| `@repositories` | `src/infrastructure/localDB/repositories` | Repository service modules (`@repositories/entityService`, etc.) |
+| `@network` | `src/infrastructure/network` | Network clients (`@network/syncService`, etc.) |
+| `@utils` | `src/infrastructure/utils` | Shared utility functions |
+| `@domain/database` | `src/features/App/domain/database` | Core domain types (`Entidad`, `Proyecto`, `Carpeta`, etc.) |
+| `@domain/maps` | `src/features/Maps/domain/maps` | Map-specific domain types |
+| `@domain/timeline` | `src/features/Timeline/domain/timeline` | Timeline domain types |
+| `@domain/writing` | `src/features/Writing/domain/writing` | Writing/notebook domain types |
+| `@domain/linguistics` | `src/features/Linguistics/domain/linguistics` | Linguistics/conlang domain types |
+| `@domain/graph` | `src/features/Graph/domain/graph` | Graph domain types |
+| `@domain/ui` | `src/features/Shell/domain/ui` | Shell/UI domain types |
 
 <Note>
-  Shared kernel imports use `@components` and `@components/*` — there is no `ui` segment in the path. Importing `@components/ui/Button` is incorrect; the right form is `@components/primitives/Button` (or whichever Shared subdirectory applies).
+  Shared kernel imports use `@components` — there is no `ui` segment in the path. Importing `@components/ui/Button` is incorrect; the right form is `@components/primitives/Button` (or whichever Shared subdirectory applies). Individual `@domain/*` aliases are declared explicitly in `vite.config.ts` — there is no single catch-all `@domain/*` wildcard.
 </Note>
 
 ### Architecture Guardrails

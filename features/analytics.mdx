@@ -1,7 +1,7 @@
 ---
 title: "Analytics Dashboard: Insights About Your World"
 sidebarTitle: "Analytics"
-description: "The Chronos Atlas Analytics dashboard shows statistics about your world — entity counts by type, writing word counts, timeline density, and project activity."
+description: "Live project metrics for Chronos Atlas — entity distribution pie chart, word count and codex progress bars, notebook stats, and an Architect Summary."
 ---
 
 The Analytics Dashboard gives you a live, at-a-glance overview of your project's scope and completeness. Rather than hunting through the World Bible to judge how developed a particular area of your world is, the dashboard surfaces the key numbers — entity counts, writing volume, notebook activity, and the distribution of your worldbuilding work — all computed in real-time from your local SQLite database.
@@ -12,14 +12,14 @@ The dashboard is driven by the `useAnalyticsDashboard` hook, which subscribes to
 
 The four primary **`StatCard`** metrics displayed across the top of the dashboard are:
 
-| Metric | Field | Icon | Color |
+| Metric | Label | Icon | Color |
 |---|---|---|---|
-| Total Words | `stats.wordCount` | `description` | Primary |
-| Entities Created | `stats.entityCount` | `account_tree` | Purple |
-| Notebook Pages | `stats.pageCount` | `auto_stories` | Amber |
-| Active Notebooks | `stats.notebookCount` | `folder_open` | Emerald |
+| Total Words | `Palabras Totales` | `description` | Primary |
+| Entities Created | `Entidades Creadas` | `account_tree` | Purple |
+| Notebook Pages | `Hojas de Archivador` | `auto_stories` | Amber |
+| Active Notebooks | `Archivadores Activos` | `folder_open` | Emerald |
 
-Each card uses the `StatCard` component with a `label`, `value`, `icon` (Google Material Symbols), and a `color` CSS class. While data is loading, cards display a loading skeleton via the `isLoading` flag.
+Each card uses the `StatCard` component with a `label`, `value`, `icon` (Google Material Symbols), and a `color` CSS class. While data is loading, cards display a loading spinner via the `isLoading` flag.
 
 ```ts
 const cards = [
@@ -50,13 +50,13 @@ const cards = [
 ];
 ```
 
-## Charts
+## Charts and Progress Panels
 
-Below the stat cards, the dashboard renders two primary visualization panels side-by-side.
+Below the stat cards, the dashboard renders two visualization panels side-by-side.
 
 ### Entity Distribution Pie Chart
 
-The left panel uses **[Nivo](https://nivo.rocks/)**'s `ResponsivePie` component to render the distribution of entities across archetype types (`stats.entitiesByType`). Each slice represents one entity type, and the chart uses the Nivo `"nivo"` color scheme with:
+The left panel uses **[Nivo](https://nivo.rocks/)**'s `ResponsivePie` component to render the distribution of entities across type categories (`stats.entitiesByType`). Each slice represents one entity type, and the chart uses the Nivo `"nivo"` color scheme with:
 
 - `innerRadius: 0.6` — donut-style with a hollow center
 - `padAngle: 2` — visual separation between slices
@@ -66,14 +66,26 @@ The tooltip and labels respect the active CSS theme by reading `hsl(var(--backgr
 
 ### Chronological Consistency Panel
 
-The right panel tracks two progress metrics derived from `stats`:
+The right panel tracks two progress milestones derived from `stats`, rendered as animated progress bars via **Framer Motion**:
 
 | Bar | Formula | Color |
 |---|---|---|
 | **Codex Progress** | `min(100, round((entityCount / 50) * 100))` | Primary |
 | **Chronicles Volume** | `min(100, round((wordCount / 10000) * 100))` | Amber |
 
-These bars are animated via **Framer Motion** (`initial={{ width: 0 }}` → `animate={{ width: \`${value}%\`}}`), giving the dashboard a sense of living data as it loads. The targets (50 entities, 10,000 words) serve as baseline milestones for a healthy worldbuilding project.
+Each bar animates from `width: 0` to its computed percentage on mount (`initial={{ width: 0 }}` → `animate={{ width: \`${value}%\`}}`), giving the dashboard a sense of living data as it loads. The targets (50 entities, 10,000 words) serve as baseline milestones for a healthy worldbuilding project.
+
+The `progress` object is computed inside `useAnalyticsDashboard`:
+
+```ts
+const progress = useMemo(
+  () => ({
+    codex: Math.min(100, Math.round((stats.entityCount / 50) * 100)),
+    chronicles: Math.min(100, Math.round((stats.wordCount / 10000) * 100)),
+  }),
+  [stats.entityCount, stats.wordCount],
+);
+```
 
 ## The Architect Summary
 
@@ -81,11 +93,11 @@ At the bottom of the dashboard, a **Resumen del Arquitecto** panel provides a na
 
 > "You have documented a total of **{entityCount} entities** and woven **{wordCount} words** into your chronicles. The greatest density of knowledge is concentrated in the **{topEntityType}** category."
 
-The `topEntityType` is derived from `stats.entitiesByType[0]?.label`, i.e., the most-populated entity archetype in the project.
+The `topEntityType` is derived from `stats.entitiesByType[0]?.label`, i.e., the most-populated entity type in the project.
 
 ## Using Analytics
 
-The dashboard is most useful as a **coverage audit tool**. A world that is well-developed in one area (many Individual characters, high word count) but sparse in another (few Territory or Organization entities, no timeline events) is visible at a glance through the entity distribution pie chart.
+The dashboard is most useful as a **coverage audit tool**. A world that is well-developed in one area (many entities of one type, high word count) but sparse in another (few Territory or Organization entities, no timeline events) is visible at a glance through the entity distribution pie chart.
 
 <Tip>
   Check the Analytics dashboard regularly to identify which entity types or narrative areas have coverage gaps in your world. If the pie chart is dominated by one slice, consider expanding into under-represented categories like locations, organizations, or timeline events.

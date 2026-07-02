@@ -49,12 +49,36 @@ The Timeline Editor renders each track as a horizontal lane with event cards arr
 
 Each Timeline can be associated with a custom `Calendario` defined in your project. A `Calendario` stores JSON-encoded month definitions (`meses_json`), weekday names (`dias_semana_json`), and an epoch start date (`fecha_inicio_json`). When a calendar is assigned to a timeline, the date picker in the event editor uses that calendar's months and weekday cycle instead of the Gregorian calendar, letting you record events in the native date system of your fictional world.
 
-## Importing Events
+## Managing Universes and Tracks
 
-The **TimelineImportModal** provides a bulk import flow for adding many events to a track at once. You can paste or upload a structured list of event titles, descriptions, and simulated dates, and the modal will call `TimelineUseCase.createEvent` for each entry in sequence, placing all imported events at the end of the track's current `orden` sequence.
+The Timeline module exposes a full set of management methods via `TimelineUseCase`:
+
+| Operation | Method |
+|---|---|
+| Load all universes | `TimelineUseCase.getUniverses(projectId)` |
+| Create a universe | `TimelineUseCase.createUniverse(name, projectId)` |
+| Create a track | `TimelineUseCase.createTimeline(name, projectId, universeId)` |
+| Rename a universe or track | `TimelineUseCase.updateTimelineFolder(folderId, newName, projectId)` |
+| Delete a universe | `TimelineUseCase.deleteUniverse(universeId)` |
+| Delete a track | `TimelineUseCase.deleteTimeline(timelineId)` |
 
 ## Entity Linking
 
 Events can be linked to one or more World Bible entities, creating a bidirectional relationship between your chronology and your entity library. `TimelineUseCase.linkEntity` associates an `Entidad` with an `Evento` by writing a join record, and `TimelineUseCase.unlinkEntity` removes that association.
 
 This linkage powers the **MiniTimeline** component that appears in the Entity Inspector inside the World Bible. When you open any entity, the MiniTimeline sidebar panel queries `TimelineUseCase.getEventsByEntity` and renders a compact chronological view of every event that references that entity — giving you instant narrative context without leaving the entity's page.
+
+## Event Management
+
+Individual events within a track are managed through a dedicated set of methods:
+
+| Operation | Method |
+|---|---|
+| Load events for a track | `TimelineUseCase.getByTimeline(timelineId)` |
+| Get a single event | `TimelineUseCase.getEventById(eventId)` |
+| Create an event | `TimelineUseCase.createEvent(data)` |
+| Update an event | `TimelineUseCase.updateEvent(id, updates)` |
+| Delete an event | `TimelineUseCase.deleteEvent(eventId)` |
+| Get events for an entity | `TimelineUseCase.getEventsByEntity(entityId)` |
+| Link an entity to an event | `TimelineUseCase.linkEntity(eventId, entityId)` |
+| Unlink an entity from an event | `TimelineUseCase.unlinkEntity(eventId, entityId)` |
